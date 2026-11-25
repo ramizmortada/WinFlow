@@ -30,6 +30,7 @@ import {
   Download,
   ChevronUp,
   ChevronDown,
+  FolderOpen,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -124,6 +125,8 @@ export default function App() {
   const [recordedKeys, setRecordedKeys] = useState<string[]>([])
   const [shortcutError, setShortcutError] = useState<string | null>(null)
   const [shortcutSuccess, setShortcutSuccess] = useState<string | null>(null)
+  const [explorerMenuEnabled, setExplorerMenuEnabled] = useState<boolean>(true)
+  const [explorerIncludeExt, setExplorerIncludeExt] = useState<boolean>(true)
 
   const [updateInfo, setUpdateInfo] = useState<Update | null>(null)
   const [isUpdating, setIsUpdating] = useState<boolean>(false)
@@ -178,6 +181,16 @@ export default function App() {
     invoke<string>("get_color_picker_shortcut")
       .then((sc) => {
         if (sc) setColorPickerShortcut(sc)
+      })
+      .catch(() => {})
+
+    // Fetch File Explorer context menu settings
+    invoke<{ enabled: boolean; include_extensions: boolean }>("get_explorer_settings")
+      .then((res) => {
+        if (res) {
+          setExplorerMenuEnabled(res.enabled)
+          setExplorerIncludeExt(res.include_extensions)
+        }
       })
       .catch(() => {})
 
@@ -1207,8 +1220,8 @@ function isHexColorItem(item: ClipboardItem): boolean {
                   <Keyboard className="h-4 w-4" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-semibold text-emerald-100">Shortcut Settings</h4>
-                  <p className="text-[10px] text-emerald-400/60">Configure global shortcuts</p>
+                  <h4 className="text-xs font-semibold text-emerald-100">WinFlow Settings</h4>
+                  <p className="text-[10px] text-emerald-400/60">Shortcuts &amp; Explorer tools</p>
                 </div>
               </div>
               <button
@@ -1336,6 +1349,108 @@ function isHexColorItem(item: ClipboardItem): boolean {
                     <p className="text-[9px] text-emerald-400/60">Press Esc to cancel</p>
                   </div>
                 )}
+              </div>
+
+              {/* Section 3: File Explorer Context Menu */}
+              <div className="space-y-2 pt-2 border-t border-emerald-900/60">
+                <span className="text-[10px] font-medium text-emerald-400/70 uppercase tracking-wider block">
+                  File Explorer Right-Click Menu:
+                </span>
+
+                <div className="space-y-1.5">
+                  {/* Toggle 1: Enable/Disable Context Menu */}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const next = !explorerMenuEnabled
+                      setShortcutError(null)
+                      setShortcutSuccess(null)
+                      try {
+                        const res = await invoke<{ enabled: boolean; include_extensions: boolean }>(
+                          "set_explorer_context_menu",
+                          { enabled: next }
+                        )
+                        setExplorerMenuEnabled(res.enabled)
+                        setShortcutSuccess(
+                          res.enabled
+                            ? "Explorer right-click menu enabled."
+                            : "Explorer right-click menu removed."
+                        )
+                      } catch (err) {
+                        setShortcutError(String(err))
+                      }
+                    }}
+                    className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg bg-[#06100a] border border-emerald-900/70 hover:border-emerald-700/70 transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-2 pr-2">
+                      <FolderOpen className="h-3.5 w-3.5 text-[#14ad72] shrink-0" />
+                      <div>
+                        <p className="text-[11px] font-medium text-emerald-100">
+                          Copy File &amp; Folder Names
+                        </p>
+                        <p className="text-[9px] text-emerald-400/60">
+                          Adds right-click option in File Explorer
+                        </p>
+                      </div>
+                    </div>
+                    <span
+                      className={`inline-flex h-4 w-7 shrink-0 items-center rounded-full p-0.5 transition-colors ${
+                        explorerMenuEnabled ? "bg-[#14ad72]" : "bg-emerald-950 border border-emerald-800"
+                      }`}
+                    >
+                      <span
+                        className={`h-3 w-3 rounded-full bg-slate-950 transition-transform ${
+                          explorerMenuEnabled ? "translate-x-3" : "translate-x-0 bg-emerald-400/60"
+                        }`}
+                      />
+                    </span>
+                  </button>
+
+                  {/* Toggle 2: Include File Extensions */}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const next = !explorerIncludeExt
+                      setShortcutError(null)
+                      setShortcutSuccess(null)
+                      try {
+                        const res = await invoke<{ enabled: boolean; include_extensions: boolean }>(
+                          "set_explorer_include_extensions",
+                          { includeExtensions: next }
+                        )
+                        setExplorerIncludeExt(res.include_extensions)
+                        setShortcutSuccess(
+                          res.include_extensions
+                            ? "Copying names with file extensions."
+                            : "Copying names without file extensions."
+                        )
+                      } catch (err) {
+                        setShortcutError(String(err))
+                      }
+                    }}
+                    className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg bg-[#06100a] border border-emerald-900/70 hover:border-emerald-700/70 transition-colors text-left"
+                  >
+                    <div className="pr-2">
+                      <p className="text-[11px] font-medium text-emerald-100">
+                        Include File Extensions
+                      </p>
+                      <p className="text-[9px] text-emerald-400/60">
+                        {explorerIncludeExt ? "e.g. report.pdf, photo.png" : "e.g. report, photo"}
+                      </p>
+                    </div>
+                    <span
+                      className={`inline-flex h-4 w-7 shrink-0 items-center rounded-full p-0.5 transition-colors ${
+                        explorerIncludeExt ? "bg-[#14ad72]" : "bg-emerald-950 border border-emerald-800"
+                      }`}
+                    >
+                      <span
+                        className={`h-3 w-3 rounded-full bg-slate-950 transition-transform ${
+                          explorerIncludeExt ? "translate-x-3" : "translate-x-0 bg-emerald-400/60"
+                        }`}
+                      />
+                    </span>
+                  </button>
+                </div>
               </div>
 
               {/* Status feedback message */}

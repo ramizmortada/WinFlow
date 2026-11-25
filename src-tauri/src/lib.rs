@@ -1,5 +1,10 @@
 mod clipboard;
 mod color_picker;
+mod explorer_menu;
+
+pub fn try_handle_cli() -> bool {
+    explorer_menu::try_handle_cli()
+}
 
 use std::sync::{Arc, Mutex};
 use clipboard::{ClipboardItem, ClipboardManager};
@@ -12,6 +17,10 @@ use tauri::{
 use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 struct AppConfig {
     #[serde(default)]
@@ -20,13 +29,23 @@ struct AppConfig {
     shortcuts: Vec<String>,
     #[serde(default)]
     color_picker_shortcut: Option<String>,
+    #[serde(default)]
+    explorer_context_menu: Option<bool>,
+    #[serde(default = "default_true")]
+    explorer_include_extensions: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ExplorerSettings {
+    pub enabled: bool,
+    pub include_extensions: bool,
 }
 
 fn get_config_path(app: &AppHandle) -> Option<std::path::PathBuf> {
     app.path().app_data_dir().ok().map(|p| p.join("config.json"))
 }
 
-fn load_saved_config(app: &AppHandle) -> (Vec<String>, String) {
+fn load_saved_config(app: &AppHandle) -> (Vec<String>, String, ExplorerSettings) {
     if let Some(path) = get_config_path(app) {
         if let Ok(content) = std::fs::read_to_string(path) {
             if let Ok(config) = serde_json::from_str::<AppConfig>(&content) {
@@ -46,14 +65,31 @@ fn load_saved_config(app: &AppHandle) -> (Vec<String>, String) {
                     .filter(|s| !s.trim().is_empty())
                     .unwrap_or_else(|| "Alt+C".to_string());
 
-                return (list, picker_sc);
+                let explorer = ExplorerSettings {
+                    enabled: config.explorer_context_menu.unwrap_or(true),
+                    include_extensions: config.explorer_include_extensions,
+                };
+
+                return (list, picker_sc, explorer);
             }
         }
     }
-    (vec!["Alt+V".to_string()], "Alt+C".to_string())
+    (
+        vec!["Alt+V".to_string()],
+        "Alt+C".to_string(),
+        ExplorerSettings {
+            enabled: true,
+            include_extensions: true,
+        },
+    )
 }
 
-fn save_saved_config(app: &AppHandle, shortcuts: &[String], color_picker_shortcut: &str) {
+fn save_saved_config(
+    app: &AppHandle,
+    shortcuts: &[String],
+    color_picker_shortcut: &str,
+    explorer: &ExplorerSettings,
+) {
     if let Some(path) = get_config_path(app) {
         if let Some(parent) = path.parent() {
             let _ = std::fs::create_dir_all(parent);
@@ -62,6 +98,8 @@ fn save_saved_config(app: &AppHandle, shortcuts: &[String], color_picker_shortcu
             shortcut: shortcuts.first().cloned(),
             shortcuts: shortcuts.to_vec(),
             color_picker_shortcut: Some(color_picker_shortcut.to_string()),
+            explorer_context_menu: Some(explorer.enabled),
+            explorer_include_extensions: explorer.include_extensions,
         };
         if let Ok(json) = serde_json::to_string_pretty(&config) {
             let _ = std::fs::write(path, json);
@@ -73,6 +111,7 @@ pub struct AppState {
     pub manager: Arc<ClipboardManager>,
     pub current_shortcuts: Arc<Mutex<Vec<String>>>,
     pub color_picker_shortcut: Arc<Mutex<String>>,
+    pub explorer_settings: Arc<Mutex<ExplorerSettings>>,
 }
 
 #[cfg(windows)]
@@ -351,7 +390,8 @@ fn add_shortcut(app: AppHandle, state: State<'_, AppState>, new_shortcut: String
 
     current.push(clean);
     let picker_sc = state.color_picker_shortcut.lock().unwrap().clone();
-    save_saved_config(&app, &current, &picker_sc);
+    let explorer = state.explorer_settings.lock().unwrap().clone();
+    save_saved_config(&app, &current, &picker_sc, &explorer);
 
     Ok(current.clone())
 }
@@ -371,7 +411,8 @@ fn remove_shortcut(app: AppHandle, state: State<'_, AppState>, shortcut_to_remov
             let _ = app.global_shortcut().unregister(parsed);
         }
         let picker_sc = state.color_picker_shortcut.lock().unwrap().clone();
-        save_saved_config(&app, &current, &picker_sc);
+        let explorer = state.explorer_settings.lock().unwrap().clone();
+        save_saved_config(&app, &current, &picker_sc, &explorer);
     }
 
     Ok(current.clone())
@@ -395,7 +436,8 @@ fn reset_shortcuts(app: AppHandle, state: State<'_, AppState>) -> Result<Vec<Str
 
     *current = default_list.clone();
     let picker_sc = state.color_picker_shortcut.lock().unwrap().clone();
-    save_saved_config(&app, &default_list, &picker_sc);
+    let explorer = state.explorer_settings.lock().unwrap().clone();
+    save_saved_config(&app, &default_list, &picker_sc, &explorer);
 
     Ok(default_list)
 }
@@ -426,9 +468,52 @@ fn set_color_picker_shortcut(app: AppHandle, state: State<'_, AppState>, new_sho
 
     *current = clean.clone();
     let shortcuts = state.current_shortcuts.lock().unwrap().clone();
-    save_saved_config(&app, &shortcuts, &clean);
+    let explorer = state.explorer_settings.lock().unwrap().clone();
+    save_saved_config(&app, &shortcuts, &clean, &explorer);
 
     Ok(clean)
+}
+
+#[tauri::command]
+fn get_explorer_settings(state: State<'_, AppState>) -> ExplorerSettings {
+    let mut settings = state.explorer_settings.lock().unwrap().clone();
+    settings.enabled = explorer_menu::is_explorer_context_menu_enabled();
+    settings
+}
+
+#[tauri::command]
+fn set_explorer_context_menu(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    enabled: bool,
+) -> Result<ExplorerSettings, String> {
+    explorer_menu::set_explorer_context_menu(enabled)?;
+    let mut explorer = state.explorer_settings.lock().unwrap();
+    explorer.enabled = enabled;
+    let updated = explorer.clone();
+    drop(explorer);
+
+    let shortcuts = state.current_shortcuts.lock().unwrap().clone();
+    let picker_sc = state.color_picker_shortcut.lock().unwrap().clone();
+    save_saved_config(&app, &shortcuts, &picker_sc, &updated);
+    Ok(updated)
+}
+
+#[tauri::command]
+fn set_explorer_include_extensions(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    include_extensions: bool,
+) -> Result<ExplorerSettings, String> {
+    let mut explorer = state.explorer_settings.lock().unwrap();
+    explorer.include_extensions = include_extensions;
+    let updated = explorer.clone();
+    drop(explorer);
+
+    let shortcuts = state.current_shortcuts.lock().unwrap().clone();
+    let picker_sc = state.color_picker_shortcut.lock().unwrap().clone();
+    save_saved_config(&app, &shortcuts, &picker_sc, &updated);
+    Ok(updated)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -436,17 +521,23 @@ pub fn run() {
     let manager = Arc::new(ClipboardManager::new());
     let current_shortcuts = Arc::new(Mutex::new(vec!["Alt+V".to_string()]));
     let color_picker_shortcut = Arc::new(Mutex::new("Alt+C".to_string()));
+    let explorer_settings = Arc::new(Mutex::new(ExplorerSettings {
+        enabled: true,
+        include_extensions: true,
+    }));
 
     let manager_for_thread = Arc::clone(&manager);
     let manager_for_setup = Arc::clone(&manager);
     let current_shortcuts_for_setup = Arc::clone(&current_shortcuts);
     let color_picker_shortcut_for_setup = Arc::clone(&color_picker_shortcut);
+    let explorer_settings_for_setup = Arc::clone(&explorer_settings);
 
     tauri::Builder::default()
         .manage(AppState {
             manager,
             current_shortcuts,
             color_picker_shortcut,
+            explorer_settings,
         })
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -491,10 +582,14 @@ pub fn run() {
             // Load saved clipboard history from disk
             manager_for_setup.init_from_disk(&app_handle);
 
-            // Load saved shortcuts & color picker shortcut from disk
-            let (saved_shortcuts, saved_picker_sc) = load_saved_config(&app_handle);
+            // Load saved shortcuts, color picker shortcut & explorer settings from disk
+            let (saved_shortcuts, saved_picker_sc, saved_explorer) = load_saved_config(&app_handle);
             *current_shortcuts_for_setup.lock().unwrap() = saved_shortcuts.clone();
             *color_picker_shortcut_for_setup.lock().unwrap() = saved_picker_sc.clone();
+            *explorer_settings_for_setup.lock().unwrap() = saved_explorer.clone();
+
+            // Sync Windows File Explorer context menu registry entries
+            let _ = explorer_menu::set_explorer_context_menu(saved_explorer.enabled);
 
             for sc in &saved_shortcuts {
                 if let Ok(parsed) = sc.parse::<Shortcut>() {
@@ -578,6 +673,9 @@ pub fn run() {
             get_color_picker_shortcut,
             set_color_picker_shortcut,
             save_image_to_disk,
+            get_explorer_settings,
+            set_explorer_context_menu,
+            set_explorer_include_extensions,
             color_picker::start_color_picker,
             color_picker::toggle_color_picker,
             color_picker::finish_color_picker,
