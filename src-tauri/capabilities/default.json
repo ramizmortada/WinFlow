@@ -3,7 +3,11 @@
   "identifier": "default",
   "description": "enables the default permissions",
   "windows": [
-    "main"
+    "main",
+    "picker",
+    "blackscreen",
+    "snipper",
+    "pinned-snip"
   ],
   "permissions": [
     "core:default",

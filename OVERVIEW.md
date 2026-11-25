@@ -30,23 +30,15 @@ WinFlow is a lightweight, fast Windows desktop utilities companion built with **
   - **Options:** *Graceful (do not force close apps)* and *Prevent system from going to sleep* while counting down.
   - **Scheduling:** *After a specific timespan* (`Hours / Minutes / Seconds` + `15m / 30m / 1h / 2h` presets) or *At a specific time of day*.
 
+### 5. Snipping Tool (`Alt + S`)
+- **Capture Modes:** **Region** (drag to crop), **Window** (hover & click any visible window), and **Fullscreen**.
+- **Delay Timer:** `0s`, `3s`, `5s`, or `10s` delay selector on the floating capture bar.
+- **Annotations:** Arrow, Rectangle, freehand Highlighter, Blur/Redact, Text, color & stroke picker, Undo, and Clear.
+- **Actions:** **Copy** to clipboard (and WinFlow history), **Save** PNG to Pictures/Downloads, or **Pin to Screen** as an always-on-top floating reference window.
+
 ---
 
 ## Future Roadmap / Planned Features
-
-### 📸 Snipping Tool & Screenshot Studio *(Next Up — To Be Discussed)*
-A built-in, fast replacement for the Windows Snipping Tool with WinFlow integration:
-- **Custom Global Shortcut** (configurable in Settings, e.g. `Alt + S` or `PrintScreen`).
-- **Capture Modes:**
-  - Region / free-crop selection
-  - Active window / specific window capture
-  - Fullscreen / specific monitor capture
-- **Delay Timer:** Optional countdown before capture (e.g., `0s`, `3s`, `5s`, `10s`) for capturing menus or hover states.
-- **Quick Actions & Options:**
-  - Auto-copy to clipboard (and appear in WinFlow image history)
-  - Auto-save or Save As to Downloads/Pictures
-  - Lightweight annotation tools (arrows, rectangles, blur/redact, text, highlight) before copying/saving
-  - Pin snip as an always-on-top floating reference window
 
 ### Other Potential Additions
 - **Screen Text Extractor / OCR (`Alt + T`):** Extract text from any screen region using Windows' built-in OCR API.

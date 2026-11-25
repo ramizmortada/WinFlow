@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "WinFlow",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "identifier": "com.winflow.app",
   "build": {
     "frontendDist": "../dist",
@@ -47,6 +47,32 @@
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "shadow": false,
+        "visible": false
+      },
+      {
+        "label": "snipper",
+        "title": "WinFlow Snipper",
+        "fullscreen": false,
+        "resizable": false,
+        "transparent": true,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "shadow": false,
+        "visible": false
+      },
+      {
+        "label": "pinned-snip",
+        "title": "WinFlow Pinned Snip",
+        "width": 320,
+        "height": 220,
+        "resizable": true,
+        "transparent": true,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "shadow": true,
+        "center": true,
         "visible": false
       }
     ],

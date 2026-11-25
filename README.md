@@ -11,6 +11,7 @@ A fast, lightweight, and modern clipboard manager and desktop utilities companio
 ## ✨ Features
 
 - 📋 **Text & Screenshot Capture**: Automatically listens to clipboard updates and stores plain/rich text, code blocks, URLs, and high-resolution screenshots.
+- ✂️ **Snipping Tool (`Alt + S`)**: Capture **Region**, **Window**, or **Fullscreen** with optional `0s / 3s / 5s / 10s` delay timer, built-in annotations (Arrow, Box, Highlighter, Blur/Redact, Text), and **Copy / Save / Pin to Screen** actions.
 - 🎨 **Screen Color Picker (`Alt + C`)**: Instant magnifying loupe that samples any pixel on your desktop and copies the `#HEX` code with one click.
 - 🎨 **Color History Filter**: Dedicated color filter tab to quickly browse, review, and copy your captured palette colors.
 - 📁 **File Explorer Right-Click Copy Names**: Context menu integration in Windows File Explorer to copy all file & folder names inside a directory or from a multi-selection (with a Settings toggle for including/stripping file extensions).
@@ -70,6 +71,7 @@ The compiled executable and installer will be generated in `src-tauri/target/rel
 | Shortcut | Action |
 | :--- | :--- |
 | `Alt + V` | Open / Toggle WinFlow Clipboard anywhere |
+| `Alt + S` | Open Snipping Tool |
 | `Alt + C` | Open / Toggle Screen Color Picker |
 | `↑` / `↓` | Navigate clipboard items |
 | `Enter` | Paste selected item into active field |

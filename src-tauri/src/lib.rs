@@ -3,6 +3,7 @@ mod clipboard;
 mod color_picker;
 mod explorer_menu;
 mod shutdown_timer;
+mod snipper;
 
 pub fn try_handle_cli() -> bool {
     explorer_menu::try_handle_cli()
@@ -32,6 +33,8 @@ struct AppConfig {
     #[serde(default)]
     color_picker_shortcut: Option<String>,
     #[serde(default)]
+    snipper_shortcut: Option<String>,
+    #[serde(default)]
     explorer_context_menu: Option<bool>,
     #[serde(default = "default_true")]
     explorer_include_extensions: bool,
@@ -47,7 +50,7 @@ fn get_config_path(app: &AppHandle) -> Option<std::path::PathBuf> {
     app.path().app_data_dir().ok().map(|p| p.join("config.json"))
 }
 
-fn load_saved_config(app: &AppHandle) -> (Vec<String>, String, ExplorerSettings) {
+fn load_saved_config(app: &AppHandle) -> (Vec<String>, String, String, ExplorerSettings) {
     if let Some(path) = get_config_path(app) {
         if let Ok(content) = std::fs::read_to_string(path) {
             if let Ok(config) = serde_json::from_str::<AppConfig>(&content) {
@@ -67,18 +70,24 @@ fn load_saved_config(app: &AppHandle) -> (Vec<String>, String, ExplorerSettings)
                     .filter(|s| !s.trim().is_empty())
                     .unwrap_or_else(|| "Alt+C".to_string());
 
+                let snipper_sc = config
+                    .snipper_shortcut
+                    .filter(|s| !s.trim().is_empty())
+                    .unwrap_or_else(|| "Alt+S".to_string());
+
                 let explorer = ExplorerSettings {
                     enabled: config.explorer_context_menu.unwrap_or(true),
                     include_extensions: config.explorer_include_extensions,
                 };
 
-                return (list, picker_sc, explorer);
+                return (list, picker_sc, snipper_sc, explorer);
             }
         }
     }
     (
         vec!["Alt+V".to_string()],
         "Alt+C".to_string(),
+        "Alt+S".to_string(),
         ExplorerSettings {
             enabled: true,
             include_extensions: true,
@@ -90,6 +99,7 @@ fn save_saved_config(
     app: &AppHandle,
     shortcuts: &[String],
     color_picker_shortcut: &str,
+    snipper_shortcut: &str,
     explorer: &ExplorerSettings,
 ) {
     if let Some(path) = get_config_path(app) {
@@ -100,6 +110,7 @@ fn save_saved_config(
             shortcut: shortcuts.first().cloned(),
             shortcuts: shortcuts.to_vec(),
             color_picker_shortcut: Some(color_picker_shortcut.to_string()),
+            snipper_shortcut: Some(snipper_shortcut.to_string()),
             explorer_context_menu: Some(explorer.enabled),
             explorer_include_extensions: explorer.include_extensions,
         };
@@ -113,6 +124,7 @@ pub struct AppState {
     pub manager: Arc<ClipboardManager>,
     pub current_shortcuts: Arc<Mutex<Vec<String>>>,
     pub color_picker_shortcut: Arc<Mutex<String>>,
+    pub snipper_shortcut: Arc<Mutex<String>>,
     pub explorer_settings: Arc<Mutex<ExplorerSettings>>,
     pub shutdown_timer: Arc<shutdown_timer::ShutdownTimerManager>,
 }
@@ -398,8 +410,9 @@ fn add_shortcut(app: AppHandle, state: State<'_, AppState>, new_shortcut: String
 
     current.push(clean);
     let picker_sc = state.color_picker_shortcut.lock().unwrap().clone();
+    let snipper_sc = state.snipper_shortcut.lock().unwrap().clone();
     let explorer = state.explorer_settings.lock().unwrap().clone();
-    save_saved_config(&app, &current, &picker_sc, &explorer);
+    save_saved_config(&app, &current, &picker_sc, &snipper_sc, &explorer);
 
     Ok(current.clone())
 }
@@ -419,8 +432,9 @@ fn remove_shortcut(app: AppHandle, state: State<'_, AppState>, shortcut_to_remov
             let _ = app.global_shortcut().unregister(parsed);
         }
         let picker_sc = state.color_picker_shortcut.lock().unwrap().clone();
+        let snipper_sc = state.snipper_shortcut.lock().unwrap().clone();
         let explorer = state.explorer_settings.lock().unwrap().clone();
-        save_saved_config(&app, &current, &picker_sc, &explorer);
+        save_saved_config(&app, &current, &picker_sc, &snipper_sc, &explorer);
     }
 
     Ok(current.clone())
@@ -444,8 +458,9 @@ fn reset_shortcuts(app: AppHandle, state: State<'_, AppState>) -> Result<Vec<Str
 
     *current = default_list.clone();
     let picker_sc = state.color_picker_shortcut.lock().unwrap().clone();
+    let snipper_sc = state.snipper_shortcut.lock().unwrap().clone();
     let explorer = state.explorer_settings.lock().unwrap().clone();
-    save_saved_config(&app, &default_list, &picker_sc, &explorer);
+    save_saved_config(&app, &default_list, &picker_sc, &snipper_sc, &explorer);
 
     Ok(default_list)
 }
@@ -476,8 +491,39 @@ fn set_color_picker_shortcut(app: AppHandle, state: State<'_, AppState>, new_sho
 
     *current = clean.clone();
     let shortcuts = state.current_shortcuts.lock().unwrap().clone();
+    let snipper_sc = state.snipper_shortcut.lock().unwrap().clone();
     let explorer = state.explorer_settings.lock().unwrap().clone();
-    save_saved_config(&app, &shortcuts, &clean, &explorer);
+    save_saved_config(&app, &shortcuts, &clean, &snipper_sc, &explorer);
+
+    Ok(clean)
+}
+
+#[tauri::command]
+fn get_snipper_shortcut(state: State<'_, AppState>) -> String {
+    state.snipper_shortcut.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn set_snipper_shortcut(app: AppHandle, state: State<'_, AppState>, new_shortcut: String) -> Result<String, String> {
+    let clean = new_shortcut.trim().to_string();
+    let parsed: Shortcut = clean
+        .parse()
+        .map_err(|e| format!("Invalid shortcut combination '{}': {:?}", clean, e))?;
+
+    let mut current = state.snipper_shortcut.lock().unwrap();
+    if let Ok(old_parsed) = current.parse::<Shortcut>() {
+        let _ = app.global_shortcut().unregister(old_parsed);
+    }
+
+    app.global_shortcut()
+        .register(parsed)
+        .map_err(|e| format!("Failed to register '{}' (it may be in use by Windows or another app): {}", clean, e))?;
+
+    *current = clean.clone();
+    let shortcuts = state.current_shortcuts.lock().unwrap().clone();
+    let picker_sc = state.color_picker_shortcut.lock().unwrap().clone();
+    let explorer = state.explorer_settings.lock().unwrap().clone();
+    save_saved_config(&app, &shortcuts, &picker_sc, &clean, &explorer);
 
     Ok(clean)
 }
@@ -503,7 +549,8 @@ fn set_explorer_context_menu(
 
     let shortcuts = state.current_shortcuts.lock().unwrap().clone();
     let picker_sc = state.color_picker_shortcut.lock().unwrap().clone();
-    save_saved_config(&app, &shortcuts, &picker_sc, &updated);
+    let snipper_sc = state.snipper_shortcut.lock().unwrap().clone();
+    save_saved_config(&app, &shortcuts, &picker_sc, &snipper_sc, &updated);
     Ok(updated)
 }
 
@@ -520,7 +567,8 @@ fn set_explorer_include_extensions(
 
     let shortcuts = state.current_shortcuts.lock().unwrap().clone();
     let picker_sc = state.color_picker_shortcut.lock().unwrap().clone();
-    save_saved_config(&app, &shortcuts, &picker_sc, &updated);
+    let snipper_sc = state.snipper_shortcut.lock().unwrap().clone();
+    save_saved_config(&app, &shortcuts, &picker_sc, &snipper_sc, &updated);
     Ok(updated)
 }
 
@@ -551,6 +599,7 @@ pub fn run() {
     let manager = Arc::new(ClipboardManager::new());
     let current_shortcuts = Arc::new(Mutex::new(vec!["Alt+V".to_string()]));
     let color_picker_shortcut = Arc::new(Mutex::new("Alt+C".to_string()));
+    let snipper_shortcut = Arc::new(Mutex::new("Alt+S".to_string()));
     let explorer_settings = Arc::new(Mutex::new(ExplorerSettings {
         enabled: true,
         include_extensions: true,
@@ -561,6 +610,7 @@ pub fn run() {
     let manager_for_setup = Arc::clone(&manager);
     let current_shortcuts_for_setup = Arc::clone(&current_shortcuts);
     let color_picker_shortcut_for_setup = Arc::clone(&color_picker_shortcut);
+    let snipper_shortcut_for_setup = Arc::clone(&snipper_shortcut);
     let explorer_settings_for_setup = Arc::clone(&explorer_settings);
 
     tauri::Builder::default()
@@ -568,6 +618,7 @@ pub fn run() {
             manager,
             current_shortcuts,
             color_picker_shortcut,
+            snipper_shortcut,
             explorer_settings,
             shutdown_timer,
         })
@@ -584,10 +635,18 @@ pub fn run() {
                     if event.state() == ShortcutState::Pressed {
                         let state = app.state::<AppState>();
                         let picker_sc = state.color_picker_shortcut.lock().unwrap().clone();
+                        let snipper_sc = state.snipper_shortcut.lock().unwrap().clone();
 
                         if let Ok(picker_parsed) = picker_sc.parse::<Shortcut>() {
                             if picker_parsed == *shortcut {
                                 let _ = color_picker::toggle_color_picker(app.clone());
+                                return;
+                            }
+                        }
+
+                        if let Ok(snipper_parsed) = snipper_sc.parse::<Shortcut>() {
+                            if snipper_parsed == *shortcut {
+                                let _ = snipper::start_snipper(app.clone());
                                 return;
                             }
                         }
@@ -614,10 +673,11 @@ pub fn run() {
             // Load saved clipboard history from disk
             manager_for_setup.init_from_disk(&app_handle);
 
-            // Load saved shortcuts, color picker shortcut & explorer settings from disk
-            let (saved_shortcuts, saved_picker_sc, saved_explorer) = load_saved_config(&app_handle);
+            // Load saved shortcuts, color picker shortcut, snipper shortcut & explorer settings from disk
+            let (saved_shortcuts, saved_picker_sc, saved_snipper_sc, saved_explorer) = load_saved_config(&app_handle);
             *current_shortcuts_for_setup.lock().unwrap() = saved_shortcuts.clone();
             *color_picker_shortcut_for_setup.lock().unwrap() = saved_picker_sc.clone();
+            *snipper_shortcut_for_setup.lock().unwrap() = saved_snipper_sc.clone();
             *explorer_settings_for_setup.lock().unwrap() = saved_explorer.clone();
 
             // Sync Windows File Explorer context menu registry entries
@@ -633,6 +693,10 @@ pub fn run() {
                 let _ = app.global_shortcut().register(picker_parsed);
             }
 
+            if let Ok(snipper_parsed) = saved_snipper_sc.parse::<Shortcut>() {
+                let _ = app.global_shortcut().register(snipper_parsed);
+            }
+
             // Enable autostart with Windows on boot
             let _ = app.autolaunch().enable();
 
@@ -641,6 +705,7 @@ pub fn run() {
 
             // Create System Tray Menu
             let show_i = MenuItem::with_id(app, "show", "Open WinFlow", true, None::<&str>)?;
+            let snipper_i = MenuItem::with_id(app, "snipper", "Snipping Tool (Alt+S)", true, None::<&str>)?;
             let picker_i = MenuItem::with_id(app, "color_picker", "Color Picker (Alt+C)", true, None::<&str>)?;
             let black_screen_i = MenuItem::with_id(app, "black_screen", "Black Screen", true, None::<&str>)?;
             let shutdown_timer_i = MenuItem::with_id(app, "shutdown_timer", "Shutdown Timer...", true, None::<&str>)?;
@@ -650,6 +715,7 @@ pub fn run() {
                 app,
                 &[
                     &show_i,
+                    &snipper_i,
                     &picker_i,
                     &black_screen_i,
                     &shutdown_timer_i,
@@ -668,6 +734,9 @@ pub fn run() {
                     }
                     "show" => {
                         toggle_window(app.clone());
+                    }
+                    "snipper" => {
+                        let _ = snipper::start_snipper(app.clone());
                     }
                     "color_picker" => {
                         let _ = color_picker::toggle_color_picker(app.clone());
@@ -727,6 +796,8 @@ pub fn run() {
             reset_shortcuts,
             get_color_picker_shortcut,
             set_color_picker_shortcut,
+            get_snipper_shortcut,
+            set_snipper_shortcut,
             save_image_to_disk,
             get_explorer_settings,
             set_explorer_context_menu,
@@ -736,6 +807,15 @@ pub fn run() {
             cancel_shutdown_timer,
             black_screen::start_black_screen,
             black_screen::stop_black_screen,
+            snipper::start_snipper,
+            snipper::get_snip_snapshot,
+            snipper::delayed_snip_capture,
+            snipper::close_snipper,
+            snipper::copy_snip_image,
+            snipper::save_snip_image,
+            snipper::pin_snip_image,
+            snipper::get_pinned_snip_data,
+            snipper::close_pinned_snip,
             color_picker::start_color_picker,
             color_picker::toggle_color_picker,
             color_picker::finish_color_picker,

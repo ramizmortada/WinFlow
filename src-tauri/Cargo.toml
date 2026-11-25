@@ -1,6 +1,6 @@
 [package]
 name = "winflow"
-version = "0.2.3"
+version = "0.2.4"
 description = "WinFlow - Fast, lightweight Windows Clipboard Manager & Desktop Utilities"
 authors = ["you"]
 edition = "2021"

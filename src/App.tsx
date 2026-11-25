@@ -8,111 +8,43 @@ import {
   Search,
   Pin,
   Trash2,
-  Copy,
-  Code2,
-  Link2,
   FileText,
   Image as ImageIcon,
-  Check,
   Sparkles,
   Command as CommandIcon,
   X,
-  Maximize2,
   Clock,
   Layers,
   RefreshCw,
   Settings,
-  Keyboard,
-  RotateCcw,
-  AlertCircle,
-  Plus,
   Pipette,
-  Download,
   ChevronUp,
   ChevronDown,
-  FolderOpen,
-  Moon,
-  Power,
   Wrench,
   Timer,
-  Lock,
-  LogOut,
+  Scissors,
 } from "lucide-react"
-import * as DropdownMenu from "@radix-ui/react-dropdown-menu"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu"
 import ColorPickerOverlay from "./components/ColorPickerOverlay"
 import BlackScreenOverlay from "./components/BlackScreenOverlay"
+import SnipperOverlay from "./components/SnipperOverlay"
+import PinnedSnipWindow from "./components/PinnedSnipWindow"
+import ClipboardItemCard from "./components/ClipboardItemCard"
+import ToolsModal from "./components/ToolsModal"
+import SettingsModal from "./components/SettingsModal"
+import {
+  formatCountdown,
+  formatShortcutDisplay,
+  formatTimeAMPM,
+  isHexColorItem,
+} from "@/lib/formatters"
+import type {
+  ClipboardItem,
+  ShutdownTimerStatus,
+} from "@/types"
 
-export interface ClipboardItem {
-  id: string
-  content_type: "text" | "code" | "link" | "image"
-  text_content?: string | null
-  image_data_url?: string | null
-  image_width?: number | null
-  image_height?: number | null
-  image_size_bytes?: number | null
-  hash: string
-  copied_at: string
-  is_pinned: boolean
-  char_count?: number | null
-  language?: string | null
-}
-
-function formatTimeAMPM(timeStr?: string | null): string {
-  if (!timeStr) return ""
-  const trimmed = timeStr.trim()
-  if (/am|pm/i.test(trimmed)) return trimmed
-
-  const match = trimmed.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/)
-  if (match) {
-    let hours = parseInt(match[1], 10)
-    const minutes = match[2]
-    const ampm = hours >= 12 ? "PM" : "AM"
-    hours = hours % 12 || 12
-    return `${hours}:${minutes} ${ampm}`
-  }
-
-  const d = new Date(trimmed)
-  if (!isNaN(d.getTime())) {
-    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true })
-  }
-
-  return trimmed
-}
-
-function formatKeyDisplayName(key: string): string {
-  const k = key.trim()
-  if (k.toLowerCase() === "super" || k.toLowerCase() === "meta") return "Win"
-  if (k.toLowerCase() === "command") return "Cmd"
-  if (k.toLowerCase() === "control") return "Ctrl"
-  if (k.toLowerCase() === "backquote") return "`"
-  return k
-}
-
-function formatShortcutDisplay(shortcutStr: string): string {
-  if (!shortcutStr) return ""
-  return shortcutStr
-    .split("+")
-    .map((k) => formatKeyDisplayName(k))
-    .join(" + ")
-}
-
-function formatCountdown(totalSeconds: number): string {
-  const hrs = Math.floor(totalSeconds / 3600)
-  const mins = Math.floor((totalSeconds % 3600) / 60)
-  const secs = totalSeconds % 60
-  const pad = (n: number) => String(n).padStart(2, "0")
-  return hrs > 0 ? `${pad(hrs)}:${pad(mins)}:${pad(secs)}` : `${pad(mins)}:${pad(secs)}`
-}
+export type { ClipboardItem }
 
 function getInitialWindowLabel(): string {
   try {
@@ -137,27 +69,19 @@ export default function App() {
   const [showSettings, setShowSettings] = useState<boolean>(false)
   const [globalShortcuts, setGlobalShortcuts] = useState<string[]>(["Alt+V"])
   const [colorPickerShortcut, setColorPickerShortcut] = useState<string>("Alt+C")
-  const [recordingTarget, setRecordingTarget] = useState<"clipboard" | "picker" | null>(null)
+  const [snipperShortcut, setSnipperShortcut] = useState<string>("Alt+S")
+  const [recordingTarget, setRecordingTarget] = useState<"clipboard" | "picker" | "snipper" | null>(null)
   const [recordedKeys, setRecordedKeys] = useState<string[]>([])
   const [shortcutError, setShortcutError] = useState<string | null>(null)
   const [shortcutSuccess, setShortcutSuccess] = useState<string | null>(null)
   const [explorerMenuEnabled, setExplorerMenuEnabled] = useState<boolean>(true)
   const [explorerIncludeExt, setExplorerIncludeExt] = useState<boolean>(true)
   const [showTools, setShowTools] = useState<boolean>(false)
-  const [shutdownStatus, setShutdownStatus] = useState<{
-    active: boolean
-    remaining_seconds: number
-    action?: "shutdown" | "restart" | "sleep" | "lock" | "logout"
-  }>({ active: false, remaining_seconds: 0, action: "shutdown" })
-  const [powerAction, setPowerAction] = useState<"shutdown" | "restart" | "sleep" | "lock" | "logout">("shutdown")
-  const [gracefulShutdown, setGracefulShutdown] = useState<boolean>(false)
-  const [preventSleep, setPreventSleep] = useState<boolean>(true)
-  const [timerMode, setTimerMode] = useState<"timespan" | "time_of_day">("timespan")
-  const [timerHours, setTimerHours] = useState<string>("0")
-  const [timerMinutes, setTimerMinutes] = useState<string>("30")
-  const [timerSeconds, setTimerSeconds] = useState<string>("0")
-  const [targetTimeOfDay, setTargetTimeOfDay] = useState<string>("23:00")
-  const [toolsError, setToolsError] = useState<string | null>(null)
+  const [shutdownStatus, setShutdownStatus] = useState<ShutdownTimerStatus>({
+    active: false,
+    remaining_seconds: 0,
+    action: "shutdown",
+  })
 
   const [updateInfo, setUpdateInfo] = useState<Update | null>(null)
   const [isUpdating, setIsUpdating] = useState<boolean>(false)
@@ -186,7 +110,13 @@ export default function App() {
 
   // 1. Fetch initial clipboard history and listen for live updates
   useEffect(() => {
-    if (windowLabel === "picker" || windowLabel === "blackscreen") return
+    if (
+      windowLabel === "picker" ||
+      windowLabel === "blackscreen" ||
+      windowLabel === "snipper" ||
+      windowLabel === "pinned-snip"
+    )
+      return
 
     // Initial fetch from Rust backend
     invoke<ClipboardItem[]>("get_history")
@@ -212,6 +142,13 @@ export default function App() {
     invoke<string>("get_color_picker_shortcut")
       .then((sc) => {
         if (sc) setColorPickerShortcut(sc)
+      })
+      .catch(() => {})
+
+    // Fetch snipper shortcut
+    invoke<string>("get_snipper_shortcut")
+      .then((sc) => {
+        if (sc) setSnipperShortcut(sc)
       })
       .catch(() => {})
 
@@ -273,7 +210,6 @@ export default function App() {
     listen("open-tools-modal", () => {
       setShowTools(true)
       setShowSettings(false)
-      setToolsError(null)
     })
       .then((fn) => {
         unlistenOpenTools = fn
@@ -433,6 +369,22 @@ export default function App() {
     }
   }
 
+  // Handle saving snipper shortcut
+  const handleSaveSnipperShortcut = async (newShortcutStr: string) => {
+    try {
+      setShortcutError(null)
+      const saved = await invoke<string>("set_snipper_shortcut", { newShortcut: newShortcutStr })
+      setSnipperShortcut(saved)
+      setShortcutSuccess(`Snipping Tool shortcut set to ${formatShortcutDisplay(saved)}`)
+      setRecordingTarget(null)
+      setRecordedKeys([])
+      setTimeout(() => setShortcutSuccess(null), 3000)
+    } catch (err: any) {
+      console.error("Failed to set snipper shortcut:", err)
+      setShortcutError(typeof err === "string" ? err : "Could not register shortcut")
+    }
+  }
+
   // Intercept key recording in Settings Modal
   useEffect(() => {
     if (!recordingTarget) return
@@ -487,6 +439,8 @@ export default function App() {
           handleAddShortcut(candidate)
         } else if (recordingTarget === "picker") {
           handleSaveColorPickerShortcut(candidate)
+        } else if (recordingTarget === "snipper") {
+          handleSaveSnipperShortcut(candidate)
         }
       } else {
         setShortcutError("Please include at least one modifier key (Alt, Win, Ctrl, or Shift)")
@@ -497,12 +451,7 @@ export default function App() {
     return () => window.removeEventListener("keydown", handleRecordKey, true)
   }, [recordingTarget])
 
-function isHexColorItem(item: ClipboardItem): boolean {
-  if (!item.text_content) return false
-  return /^#[0-9A-Fa-f]{6}$/.test(item.text_content.trim())
-}
-
-// Filter items based on Primary Tab (Recent vs Pinned), Type Filter, and Search
+  // Filter items based on Primary Tab (Recent vs Pinned), Type Filter, and Search
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
       // 1. Primary tab filter
@@ -648,8 +597,8 @@ function isHexColorItem(item: ClipboardItem): boolean {
   }
 
   // Save Image to disk (Downloads folder)
-  const handleSaveImage = async (item: ClipboardItem, e: React.MouseEvent) => {
-    e.stopPropagation()
+  const handleSaveImage = async (item: ClipboardItem, e?: React.MouseEvent) => {
+    e?.stopPropagation()
     if (!item.image_data_url) return
 
     try {
@@ -762,6 +711,16 @@ function isHexColorItem(item: ClipboardItem): boolean {
     return <BlackScreenOverlay />
   }
 
+  // If this window is the fullscreen Snipper overlay, render SnipperOverlay
+  if (windowLabel === "snipper") {
+    return <SnipperOverlay />
+  }
+
+  // If this window is a pinned snip, render PinnedSnipWindow
+  if (windowLabel === "pinned-snip") {
+    return <PinnedSnipWindow />
+  }
+
   const pinnedCount = useMemo(() => items.filter((i) => i.is_pinned).length, [items])
   const colorCount = useMemo(() => items.filter(isHexColorItem).length, [items])
   const textCount = useMemo(
@@ -802,10 +761,7 @@ function isHexColorItem(item: ClipboardItem): boolean {
           {/* Active Shutdown Timer Pill */}
           {shutdownStatus.active && (
             <button
-              onClick={() => {
-                setShowTools(true)
-                setToolsError(null)
-              }}
+              onClick={() => setShowTools(true)}
               title="Shutdown Timer Active — Click to manage"
               className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/40 text-amber-300 text-[10px] font-mono hover:bg-amber-500/25 transition-colors"
             >
@@ -818,14 +774,22 @@ function isHexColorItem(item: ClipboardItem): boolean {
           <Button
             variant="ghost"
             size="iconSm"
-            onClick={() => {
-              setShowTools(true)
-              setToolsError(null)
-            }}
+            onClick={() => setShowTools(true)}
             title="Desktop Tools (Black Screen & Shutdown Timer)"
             className="text-emerald-400/70 hover:text-[#14ad72] hover:bg-emerald-900/40 h-6 w-6"
           >
             <Wrench className="h-3.5 w-3.5" />
+          </Button>
+
+          {/* Snipping Tool Button */}
+          <Button
+            variant="ghost"
+            size="iconSm"
+            onClick={() => invoke("start_snipper").catch(() => {})}
+            title={`Snipping Tool (${formatShortcutDisplay(snipperShortcut)})`}
+            className="text-emerald-400/70 hover:text-[#14ad72] hover:bg-emerald-900/40 h-6 w-6"
+          >
+            <Scissors className="h-3.5 w-3.5" />
           </Button>
 
           {/* Color Picker Eyedropper Button */}
@@ -1027,217 +991,30 @@ function isHexColorItem(item: ClipboardItem): boolean {
             </div>
           ) : (
             <div className="flex flex-col gap-2 pb-2">
-              {filteredItems.map((item, idx) => {
-                const isSelected = selectedIndex === idx
-                const isCopied = copiedId === item.id
-                const isImage = item.content_type === "image"
-                const formattedTime = formatTimeAMPM(item.copied_at)
-
-                // Check if item looks like a hex color code
-                const isHexColor =
-                  item.text_content && /^#[0-9A-Fa-f]{6}$/.test(item.text_content.trim())
-
-                return (
-                  <ContextMenu key={item.id}>
-                    <ContextMenuTrigger>
-                      <div
-                        ref={(el) => {
-                          if (el) itemRefs.current.set(idx, el)
-                          else itemRefs.current.delete(idx)
-                        }}
-                        onClick={() => {
-                          setSelectedIndex(idx)
-                          handlePaste(item)
-                        }}
-                        onMouseEnter={() => {
-                          if (!isInitialFocusRef.current) {
-                            setSelectedIndex(idx)
-                          }
-                        }}
-                        className={`group relative flex flex-col gap-1.5 rounded-xl border p-2.5 transition-all cursor-pointer ${
-                          isSelected
-                            ? "border-emerald-500/60 bg-[#0d2218]/90 shadow-md ring-1 ring-emerald-500/30"
-                            : "border-emerald-900/40 bg-[#09150f]/60 hover:border-emerald-700/50 hover:bg-[#0c1d14]/80"
-                        }`}
-                      >
-                        {/* Top metadata row */}
-                        <div className="flex items-center justify-between text-[10px] text-emerald-400/70">
-                          <div className="flex items-center gap-1.5">
-                            {isImage ? (
-                              <>
-                                <ImageIcon className="h-3.5 w-3.5 text-amber-400" />
-                                <span className="capitalize font-medium text-amber-300">
-                                  Image / Screenshot
-                                </span>
-                                {item.image_width && item.image_height && (
-                                  <Badge variant="warning" className="h-3.5 px-1 font-mono">
-                                    {item.image_width}×{item.image_height}
-                                  </Badge>
-                                )}
-                              </>
-                            ) : isHexColor ? (
-                              <>
-                                <Pipette className="h-3.5 w-3.5 text-[#14ad72]" />
-                                <span className="capitalize font-medium text-emerald-300">
-                                  Color Hex
-                                </span>
-                              </>
-                            ) : item.content_type === "code" ? (
-                              <>
-                                <Code2 className="h-3.5 w-3.5 text-emerald-400" />
-                                <span className="capitalize font-medium text-emerald-300">Code</span>
-                                {item.language && (
-                                  <Badge variant="accent" className="h-3.5 px-1 uppercase">
-                                    {item.language}
-                                  </Badge>
-                                )}
-                              </>
-                            ) : item.content_type === "link" ? (
-                              <>
-                                <Link2 className="h-3.5 w-3.5 text-teal-400" />
-                                <span className="capitalize font-medium text-teal-300">
-                                  Link
-                                </span>
-                              </>
-                            ) : (
-                              <>
-                                <FileText className="h-3.5 w-3.5 text-emerald-400/80" />
-                                <span className="capitalize font-medium text-emerald-300">
-                                  Text
-                                </span>
-                              </>
-                            )}
-                          </div>
-
-                          {/* Right side: Metadata + Timestamp + Action Buttons */}
-                          <div className="flex items-center gap-1.5">
-                            {item.char_count && (
-                              <span className="text-[10px] text-emerald-500/70">{item.char_count} chars</span>
-                            )}
-                            <span className="text-[10px] text-emerald-500/80 font-mono">{formattedTime}</span>
-
-                            {/* Quick Pin, Save & Delete Action Buttons (Always Visible) */}
-                            <div className="flex items-center gap-0.5 ml-0.5">
-                              {isImage && item.image_data_url && (
-                                <button
-                                  onClick={(e) => handleSaveImage(item, e)}
-                                  className={`p-1 rounded transition-colors ${
-                                    savedImageId === item.id
-                                      ? "text-emerald-400 bg-emerald-900/60"
-                                      : "text-amber-400/80 hover:text-amber-300 hover:bg-amber-500/10"
-                                  }`}
-                                  title={savedImageId === item.id ? "Saved to Downloads!" : "Save image to Downloads"}
-                                >
-                                  {savedImageId === item.id ? (
-                                    <Check className="h-3 w-3" />
-                                  ) : (
-                                    <Download className="h-3 w-3" />
-                                  )}
-                                </button>
-                              )}
-
-                              <button
-                                onClick={(e) => handleTogglePin(item.id, e)}
-                                className={`p-1 rounded hover:bg-emerald-900/60 transition-colors ${
-                                  item.is_pinned
-                                    ? "text-amber-400 fill-amber-400"
-                                    : "text-emerald-500/60 hover:text-amber-300"
-                                }`}
-                                title={item.is_pinned ? "Unpin Item (Ctrl+P)" : "Pin to Top (Ctrl+P)"}
-                              >
-                                <Pin
-                                  className={`h-3 w-3 ${item.is_pinned ? "fill-amber-400 text-amber-400" : ""}`}
-                                />
-                              </button>
-                              <button
-                                onClick={(e) => handleDelete(item.id, e)}
-                                className="p-1 rounded text-emerald-500/60 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                                title="Delete Item (Del)"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Content Preview */}
-                        {isImage && item.image_data_url ? (
-                          <div className="relative rounded-lg overflow-hidden border border-emerald-900/50 bg-[#050c08] max-h-24 flex items-center justify-center group/img">
-                            <img
-                              src={item.image_data_url}
-                              alt="Copied clipboard content"
-                              className="max-h-24 w-full object-contain rounded-md"
-                            />
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setPreviewImage(item.image_data_url!)
-                              }}
-                              className="absolute top-1.5 right-1.5 p-1 rounded-md bg-[#0a1811]/90 hover:bg-[#0f241a] text-emerald-300 opacity-0 group-hover/img:opacity-100 transition-opacity"
-                              title="Expand preview"
-                            >
-                              <Maximize2 className="h-3 w-3" />
-                            </button>
-                          </div>
-                        ) : isHexColor ? (
-                          <div className="flex items-center gap-2 py-0.5">
-                            <span
-                              className="h-5 w-5 rounded-md border border-white/30 shadow-sm shrink-0"
-                              style={{ backgroundColor: item.text_content!.trim() }}
-                            />
-                            <span className="font-mono text-xs font-semibold text-emerald-100">
-                              {item.text_content!.trim()}
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="text-xs text-emerald-100/90 font-normal line-clamp-2 break-all whitespace-pre-wrap font-sans select-text">
-                            {item.text_content}
-                          </div>
-                        )}
-
-                        {/* Copied feedback overlay */}
-                        {isCopied && (
-                          <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-[#071f13]/90 border border-emerald-500/70 backdrop-blur-sm animate-in fade-in-50">
-                            <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-200">
-                              <Check className="h-4 w-4 text-[#14ad72]" />
-                              Copied to Clipboard!
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </ContextMenuTrigger>
-
-                    <ContextMenuContent>
-                      <ContextMenuItem onClick={() => handlePaste(item)}>
-                        <Check className="mr-2 h-3.5 w-3.5 text-[#14ad72]" />
-                        Paste into Input Field
-                      </ContextMenuItem>
-                      <ContextMenuItem onClick={(e) => handleCopyOnly(item, e)}>
-                        <Copy className="mr-2 h-3.5 w-3.5 text-emerald-400" />
-                        Copy to Clipboard Only
-                      </ContextMenuItem>
-                      {isImage && item.image_data_url && (
-                        <ContextMenuItem onClick={(e) => handleSaveImage(item, e)}>
-                          <Download className="mr-2 h-3.5 w-3.5 text-amber-400" />
-                          Save Image to Downloads
-                        </ContextMenuItem>
-                      )}
-                      <ContextMenuItem onClick={(e) => handleTogglePin(item.id, e)}>
-                        <Pin className="mr-2 h-3.5 w-3.5 text-amber-400" />
-                        {item.is_pinned ? "Unpin Item" : "Pin to Top"}
-                      </ContextMenuItem>
-                      <ContextMenuSeparator />
-                      <ContextMenuItem
-                        onClick={(e) => handleDelete(item.id, e)}
-                        className="text-red-400 focus:text-red-300 focus:bg-red-900/30"
-                      >
-                        <Trash2 className="mr-2 h-3.5 w-3.5" />
-                        Delete Item
-                      </ContextMenuItem>
-                    </ContextMenuContent>
-                  </ContextMenu>
-                )
-              })}
+              {filteredItems.map((item, idx) => (
+                <ClipboardItemCard
+                  key={item.id}
+                  item={item}
+                  index={idx}
+                  isSelected={selectedIndex === idx}
+                  isCopied={copiedId === item.id}
+                  isSavedImage={savedImageId === item.id}
+                  itemRef={(el) => {
+                    if (el) itemRefs.current.set(idx, el)
+                    else itemRefs.current.delete(idx)
+                  }}
+                  onSelect={setSelectedIndex}
+                  onMouseEnter={(i) => {
+                    if (!isInitialFocusRef.current) setSelectedIndex(i)
+                  }}
+                  onPaste={handlePaste}
+                  onCopyOnly={handleCopyOnly}
+                  onSaveImage={handleSaveImage}
+                  onTogglePin={handleTogglePin}
+                  onDelete={handleDelete}
+                  onPreviewImage={setPreviewImage}
+                />
+              ))}
             </div>
           )}
         </ScrollArea>
@@ -1306,680 +1083,50 @@ function isHexColorItem(item: ClipboardItem): boolean {
         </div>
       )}
 
-      {/* Desktop Tools Panel (Black Screen & Power Timer) */}
+      {/* Desktop Tools Panel */}
       {showTools && (
-        <div className="absolute inset-0 z-50 flex flex-col bg-[#070f0a] text-emerald-100 animate-in fade-in-50">
-          {/* Panel Header */}
-          <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-emerald-900/60 bg-[#091710]/80">
-            <div className="flex items-center gap-2">
-              <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-500/10 text-[#14ad72] border border-emerald-500/20">
-                <Wrench className="h-3.5 w-3.5" />
-              </div>
-              <div>
-                <h4 className="text-xs font-semibold text-emerald-100 leading-tight">Desktop Tools</h4>
-                <p className="text-[10px] text-emerald-400/60 leading-tight">Black Screen &amp; Power Timer</p>
-              </div>
-            </div>
-            <button
-              onClick={() => setShowTools(false)}
-              className="p-1 rounded-md text-emerald-400 hover:text-emerald-200 hover:bg-emerald-900/40"
-              title="Back to Clipboard (Esc)"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-
-          {/* Panel Body — equal padding on all sides, fits cleanly */}
-          <div className="flex-1 min-h-0 flex flex-col gap-2 px-3.5 py-2.5 overflow-hidden">
-            {/* Tool 1: Black Screen */}
-            <button
-              type="button"
-              onClick={() => {
-                setShowTools(false)
-                invoke("start_black_screen").catch((err) => setToolsError(String(err)))
-              }}
-              className="w-full shrink-0 flex items-center justify-between px-3 py-2 rounded-xl bg-[#0b1811] border border-emerald-900/70 hover:border-[#14ad72]/60 hover:bg-[#0f2218] transition-all text-left group"
-            >
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-black border border-emerald-800/70 text-[#14ad72]">
-                  <Moon className="h-3.5 w-3.5" />
-                </div>
-                <div>
-                  <p className="text-[11px] font-semibold text-emerald-100 group-hover:text-[#14ad72] transition-colors leading-tight">
-                    Turn Screen Black
-                  </p>
-                  <p className="text-[9.5px] text-emerald-400/60 leading-tight mt-0.5">
-                    Covers all monitors • Esc or click to exit
-                  </p>
-                </div>
-              </div>
-              <span className="text-[10px] font-medium text-emerald-400/70 group-hover:text-[#14ad72]">
-                Activate →
-              </span>
-            </button>
-
-            {/* Tool 2: Power Timer */}
-            <div className="flex-1 min-h-0 flex flex-col justify-between p-2.5 rounded-xl bg-[#0b1811] border border-emerald-900/70">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-semibold text-emerald-400/80 uppercase tracking-wider">
-                    Power Timer
-                  </span>
-                  {shutdownStatus.active && (
-                    <span className="text-[10px] font-medium text-amber-300 flex items-center gap-1 capitalize">
-                      <Timer className="h-3 w-3 animate-pulse" />
-                      {shutdownStatus.action || "shutdown"} active
-                    </span>
-                  )}
-                </div>
-
-                {shutdownStatus.active ? (
-                  <div className="py-6 text-center space-y-4">
-                    <div>
-                      <p className="text-xs text-emerald-400/75 capitalize">
-                        Scheduled {shutdownStatus.action || "shutdown"} in
-                      </p>
-                      <p className="text-3xl font-mono font-bold text-amber-300 tracking-wider mt-1.5">
-                        {formatCountdown(shutdownStatus.remaining_seconds)}
-                      </p>
-                    </div>
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        setToolsError(null)
-                        invoke<{
-                          active: boolean
-                          remaining_seconds: number
-                          action?: "shutdown" | "restart" | "sleep" | "lock" | "logout"
-                        }>("cancel_shutdown_timer")
-                          .then((st) => setShutdownStatus(st))
-                          .catch((err) => setToolsError(String(err)))
-                      }}
-                      className="w-full h-8 text-xs bg-red-500/20 hover:bg-red-500/30 text-red-200 border border-red-500/40"
-                    >
-                      Cancel Timer
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {/* Action Dropdown Component */}
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] text-emerald-300/80 shrink-0">Action</span>
-                      <DropdownMenu.Root>
-                        <DropdownMenu.Trigger asChild>
-                          <button
-                            type="button"
-                            className="flex-1 max-w-[215px] h-7 px-2.5 rounded-lg bg-[#06100a] border border-emerald-900/80 hover:border-[#14ad72]/60 text-[11px] text-emerald-100 flex items-center justify-between transition-colors focus:outline-none focus:border-[#14ad72]"
-                          >
-                            <span className="flex items-center gap-2">
-                              {powerAction === "shutdown" && <Power className="h-3 w-3 text-[#14ad72]" />}
-                              {powerAction === "restart" && <RotateCcw className="h-3 w-3 text-[#14ad72]" />}
-                              {powerAction === "sleep" && <Moon className="h-3 w-3 text-[#14ad72]" />}
-                              {powerAction === "lock" && <Lock className="h-3 w-3 text-[#14ad72]" />}
-                              {powerAction === "logout" && <LogOut className="h-3 w-3 text-[#14ad72]" />}
-                              <span className="capitalize">
-                                {powerAction === "logout" ? "Log Out" : powerAction}
-                              </span>
-                            </span>
-                            <ChevronDown className="h-3.5 w-3.5 text-emerald-400/70" />
-                          </button>
-                        </DropdownMenu.Trigger>
-                        <DropdownMenu.Portal>
-                          <DropdownMenu.Content
-                            sideOffset={4}
-                            align="end"
-                            className="z-[100] w-[215px] rounded-xl bg-[#091811] border border-emerald-800/80 p-1 shadow-2xl text-emerald-100 animate-in fade-in-0 zoom-in-95"
-                          >
-                            {[
-                              { id: "shutdown", label: "Shutdown", Icon: Power },
-                              { id: "restart", label: "Restart", Icon: RotateCcw },
-                              { id: "sleep", label: "Sleep", Icon: Moon },
-                              { id: "lock", label: "Lock", Icon: Lock },
-                              { id: "logout", label: "Log Out", Icon: LogOut },
-                            ].map(({ id, label, Icon }) => (
-                              <DropdownMenu.Item
-                                key={id}
-                                onSelect={() =>
-                                  setPowerAction(
-                                    id as "shutdown" | "restart" | "sleep" | "lock" | "logout"
-                                  )
-                                }
-                                className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs cursor-pointer outline-none transition-colors ${
-                                  powerAction === id
-                                    ? "bg-emerald-500/15 text-[#14ad72] font-medium"
-                                    : "text-emerald-100 hover:bg-emerald-900/40"
-                                }`}
-                              >
-                                <span className="flex items-center gap-2">
-                                  <Icon className="h-3.5 w-3.5 text-[#14ad72]" />
-                                  <span>{label}</span>
-                                </span>
-                                {powerAction === id && <Check className="h-3.5 w-3.5 text-[#14ad72]" />}
-                              </DropdownMenu.Item>
-                            ))}
-                          </DropdownMenu.Content>
-                        </DropdownMenu.Portal>
-                      </DropdownMenu.Root>
-                    </div>
-
-                    {/* Switch Options */}
-                    <div className="space-y-1">
-                      {(powerAction === "shutdown" || powerAction === "restart") && (
-                        <button
-                          type="button"
-                          onClick={() => setGracefulShutdown(!gracefulShutdown)}
-                          className="w-full flex items-center justify-between py-0.5 text-left"
-                        >
-                          <span className="text-[10.5px] text-emerald-200/85">
-                            Graceful (do not force close apps)
-                          </span>
-                          <span
-                            className={`inline-flex h-4 w-7 shrink-0 items-center rounded-full p-0.5 transition-colors ${
-                              gracefulShutdown
-                                ? "bg-[#14ad72]"
-                                : "bg-[#06100a] border border-emerald-800"
-                            }`}
-                          >
-                            <span
-                              className={`h-3 w-3 rounded-full transition-transform ${
-                                gracefulShutdown
-                                  ? "translate-x-3 bg-slate-950"
-                                  : "translate-x-0 bg-emerald-400/60"
-                              }`}
-                            />
-                          </span>
-                        </button>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => setPreventSleep(!preventSleep)}
-                        className="w-full flex items-center justify-between py-0.5 text-left"
-                      >
-                        <span className="text-[10.5px] text-emerald-200/85">
-                          Prevent system from going to sleep
-                        </span>
-                        <span
-                          className={`inline-flex h-4 w-7 shrink-0 items-center rounded-full p-0.5 transition-colors ${
-                            preventSleep
-                              ? "bg-[#14ad72]"
-                              : "bg-[#06100a] border border-emerald-800"
-                          }`}
-                        >
-                          <span
-                            className={`h-3 w-3 rounded-full transition-transform ${
-                              preventSleep
-                                ? "translate-x-3 bg-slate-950"
-                                : "translate-x-0 bg-emerald-400/60"
-                            }`}
-                          />
-                        </span>
-                      </button>
-                    </div>
-
-                    {/* Schedule Mode */}
-                    <div className="pt-1.5 border-t border-emerald-900/50 space-y-1.5">
-                      <div className="grid grid-cols-2 gap-1 p-0.5 rounded-lg bg-[#06100a] border border-emerald-900/70">
-                        <button
-                          type="button"
-                          onClick={() => setTimerMode("timespan")}
-                          className={`py-1 rounded-md text-[10.5px] font-medium transition-colors ${
-                            timerMode === "timespan"
-                              ? "bg-emerald-500/20 text-[#14ad72] border border-[#14ad72]/40"
-                              : "text-emerald-400/70 hover:text-emerald-200"
-                          }`}
-                        >
-                          After timespan
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setTimerMode("time_of_day")}
-                          className={`py-1 rounded-md text-[10.5px] font-medium transition-colors ${
-                            timerMode === "time_of_day"
-                              ? "bg-emerald-500/20 text-[#14ad72] border border-[#14ad72]/40"
-                              : "text-emerald-400/70 hover:text-emerald-200"
-                          }`}
-                        >
-                          At time of day
-                        </button>
-                      </div>
-
-                      {timerMode === "timespan" ? (
-                        <div className="space-y-1.5">
-                          <div className="grid grid-cols-4 gap-1">
-                            {[
-                              { label: "15m", h: "0", m: "15", s: "0" },
-                              { label: "30m", h: "0", m: "30", s: "0" },
-                              { label: "1h", h: "1", m: "0", s: "0" },
-                              { label: "2h", h: "2", m: "0", s: "0" },
-                            ].map((p) => (
-                              <button
-                                key={p.label}
-                                type="button"
-                                onClick={() => {
-                                  setTimerHours(p.h)
-                                  setTimerMinutes(p.m)
-                                  setTimerSeconds(p.s)
-                                }}
-                                className="py-1 rounded-md bg-[#06100a] border border-emerald-900/80 hover:border-[#14ad72]/60 text-[10px] font-semibold text-emerald-300 hover:text-[#14ad72] transition-colors"
-                              >
-                                {p.label}
-                              </button>
-                            ))}
-                          </div>
-
-                          <div className="grid grid-cols-3 gap-1.5">
-                            {[
-                              { label: "Hours", value: timerHours, setter: setTimerHours, max: 168 },
-                              { label: "Minutes", value: timerMinutes, setter: setTimerMinutes, max: 59 },
-                              { label: "Seconds", value: timerSeconds, setter: setTimerSeconds, max: 59 },
-                            ].map((field) => {
-                              const step = (delta: number) => {
-                                const cur = parseInt(field.value || "0", 10) || 0
-                                let next = cur + delta
-                                if (next < 0) next = field.max
-                                if (next > field.max) next = 0
-                                field.setter(String(next))
-                              }
-                              return (
-                                <div key={field.label}>
-                                  <span className="text-[9.5px] text-emerald-400/70 block mb-0.5">
-                                    {field.label}
-                                  </span>
-                                  <div className="flex items-center h-7 rounded-lg bg-[#06100a] border border-emerald-900/80 focus-within:border-[#14ad72] overflow-hidden">
-                                    <input
-                                      type="number"
-                                      min={0}
-                                      max={field.max}
-                                      value={field.value}
-                                      onChange={(e) => field.setter(e.target.value)}
-                                      className="w-full h-full px-2 bg-transparent text-xs font-mono text-emerald-100 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                    />
-                                    <div className="flex flex-col border-l border-emerald-900/70 h-full w-5 shrink-0">
-                                      <button
-                                        type="button"
-                                        onClick={() => step(1)}
-                                        className="flex-1 flex items-center justify-center text-emerald-400/70 hover:text-[#14ad72] hover:bg-emerald-900/40 transition-colors"
-                                        title={`Increase ${field.label}`}
-                                      >
-                                        <ChevronUp className="h-2.5 w-2.5" />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => step(-1)}
-                                        className="flex-1 flex items-center justify-center border-t border-emerald-900/60 text-emerald-400/70 hover:text-[#14ad72] hover:bg-emerald-900/40 transition-colors"
-                                        title={`Decrease ${field.label}`}
-                                      >
-                                        <ChevronDown className="h-2.5 w-2.5" />
-                                      </button>
-                                    </div>
-                                  </div>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="py-1">
-                          <span className="text-[9.5px] text-emerald-400/70 block mb-1">
-                            Target time (if earlier than now, schedules for tomorrow)
-                          </span>
-                          <input
-                            type="time"
-                            value={targetTimeOfDay}
-                            onChange={(e) => setTargetTimeOfDay(e.target.value)}
-                            className="w-full h-8 px-2.5 rounded-lg bg-[#06100a] border border-emerald-900/80 text-xs text-emerald-100 focus:outline-none focus:border-[#14ad72] [color-scheme:dark]"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {!shutdownStatus.active && (
-                <div className="space-y-1.5 pt-1.5">
-                  {toolsError && (
-                    <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-red-950/80 border border-red-500/40 text-[10px] text-red-200">
-                      <AlertCircle className="h-3 w-3 text-red-400 shrink-0" />
-                      <span>{toolsError}</span>
-                    </div>
-                  )}
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      setToolsError(null)
-                      const h = Math.max(0, parseInt(timerHours || "0", 10) || 0)
-                      const m = Math.max(0, parseInt(timerMinutes || "0", 10) || 0)
-                      const s = Math.max(0, parseInt(timerSeconds || "0", 10) || 0)
-
-                      invoke<{
-                        active: boolean
-                        remaining_seconds: number
-                        action?: "shutdown" | "restart" | "sleep" | "lock" | "logout"
-                      }>("start_shutdown_timer", {
-                        request: {
-                          action: powerAction,
-                          mode: timerMode,
-                          hours: h,
-                          minutes: m,
-                          seconds: s,
-                          target_time: targetTimeOfDay,
-                          graceful: gracefulShutdown,
-                          prevent_sleep: preventSleep,
-                        },
-                      })
-                        .then((st) => setShutdownStatus(st))
-                        .catch((err) => setToolsError(String(err)))
-                    }}
-                    className="w-full h-8 text-xs bg-[#14ad72] hover:bg-emerald-400 text-slate-950 font-semibold"
-                  >
-                    <Power className="h-3.5 w-3.5 mr-1.5" />
-                    Start
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <ToolsModal
+          shutdownStatus={shutdownStatus}
+          onShutdownStatusChange={setShutdownStatus}
+          onClose={() => setShowTools(false)}
+        />
       )}
 
-      {/* Settings Modal (Clipboard Shortcuts & Color Picker Shortcut) */}
+      {/* Settings Modal */}
       {showSettings && (
-        <div
-          onClick={() => {
+        <SettingsModal
+          globalShortcuts={globalShortcuts}
+          colorPickerShortcut={colorPickerShortcut}
+          snipperShortcut={snipperShortcut}
+          recordingTarget={recordingTarget}
+          recordedKeys={recordedKeys}
+          shortcutError={shortcutError}
+          shortcutSuccess={shortcutSuccess}
+          explorerMenuEnabled={explorerMenuEnabled}
+          explorerIncludeExt={explorerIncludeExt}
+          onClose={() => {
             setShowSettings(false)
             setRecordingTarget(null)
           }}
-          className="absolute inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-3.5 animate-in fade-in-50"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="flex flex-col p-4 rounded-2xl bg-[#091811] border border-emerald-800/80 shadow-2xl max-w-[320px] w-full text-emerald-100 animate-in zoom-in-95"
-          >
-            {/* Modal Header */}
-            <div className="flex items-center justify-between pb-2.5 border-b border-emerald-900/60">
-              <div className="flex items-center gap-2">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-[#14ad72] border border-emerald-500/20">
-                  <Keyboard className="h-4 w-4" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-semibold text-emerald-100">WinFlow Settings</h4>
-                  <p className="text-[10px] text-emerald-400/60">Shortcuts &amp; Explorer tools</p>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setShowSettings(false)
-                  setRecordingTarget(null)
-                }}
-                className="p-1 rounded-md text-emerald-400 hover:text-emerald-200 hover:bg-emerald-900/40"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="py-2.5 space-y-3.5 max-h-[300px] overflow-y-auto pr-0.5">
-              {/* Section 1: Clipboard Palette Shortcuts */}
-              <div className="space-y-1.5">
-                <span className="text-[10px] font-medium text-emerald-400/70 uppercase tracking-wider block">
-                  Toggle Clipboard Manager:
-                </span>
-
-                <div className="space-y-1">
-                  {globalShortcuts.map((sc, i) => (
-                    <div
-                      key={sc + i}
-                      className="flex items-center justify-between px-2 py-1 rounded-lg bg-[#06100a] border border-emerald-900/70"
-                    >
-                      <div className="flex items-center gap-1">
-                        {sc.split("+").map((key, kIdx) => (
-                          <kbd
-                            key={kIdx}
-                            className="rounded-md bg-emerald-950 px-1.5 py-0.5 border border-emerald-700/60 font-mono text-[10px] font-semibold text-[#14ad72]"
-                          >
-                            {formatKeyDisplayName(key)}
-                          </kbd>
-                        ))}
-                      </div>
-
-                      {globalShortcuts.length > 1 && (
-                        <button
-                          onClick={() => handleRemoveShortcut(sc)}
-                          className="p-1 rounded text-emerald-500/60 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                          title="Remove this shortcut"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Add new clipboard shortcut button */}
-                <div
-                  onClick={() => {
-                    setRecordingTarget("clipboard")
-                    setRecordedKeys([])
-                    setShortcutError(null)
-                    setShortcutSuccess(null)
-                  }}
-                  className={`relative flex flex-col items-center justify-center p-2 rounded-lg border text-center transition-all cursor-pointer ${
-                    recordingTarget === "clipboard"
-                      ? "border-[#14ad72] bg-emerald-950/90 ring-2 ring-[#14ad72]/40 animate-pulse"
-                      : "border-dashed border-emerald-800/80 bg-[#06100a]/50 hover:border-[#14ad72]/60 hover:bg-[#0c1d14]"
-                  }`}
-                >
-                  {recordingTarget === "clipboard" ? (
-                    <div className="space-y-0.5">
-                      <p className="text-[11px] font-semibold text-[#14ad72]">
-                        {recordedKeys.length > 0
-                          ? recordedKeys.map((k) => formatKeyDisplayName(k)).join(" + ")
-                          : "Press keys to add (e.g. Win+V)..."}
-                      </p>
-                      <p className="text-[9px] text-emerald-400/60">Press Esc to cancel</p>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1 text-emerald-300 hover:text-[#14ad72]">
-                      <Plus className="h-3 w-3 text-[#14ad72]" />
-                      <span className="text-[10.5px] font-medium">Add Another Shortcut</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Section 2: Screen Color Picker Shortcut */}
-              <div className="space-y-1.5 pt-2 border-t border-emerald-900/60">
-                <span className="text-[10px] font-medium text-emerald-400/70 uppercase tracking-wider block">
-                  Screen Color Picker:
-                </span>
-
-                <div className="flex items-center justify-between px-2 py-1 rounded-lg bg-[#06100a] border border-emerald-900/70">
-                  <div className="flex items-center gap-1.5">
-                    <Pipette className="h-3.5 w-3.5 text-[#14ad72]" />
-                    <div className="flex items-center gap-1">
-                      {colorPickerShortcut.split("+").map((key, kIdx) => (
-                        <kbd
-                          key={kIdx}
-                          className="rounded-md bg-emerald-950 px-1.5 py-0.5 border border-emerald-700/60 font-mono text-[10px] font-semibold text-[#14ad72]"
-                        >
-                          {formatKeyDisplayName(key)}
-                        </kbd>
-                      ))}
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      setRecordingTarget("picker")
-                      setRecordedKeys([])
-                      setShortcutError(null)
-                      setShortcutSuccess(null)
-                    }}
-                    className="text-[10px] text-emerald-400 hover:text-[#14ad72] underline underline-offset-2"
-                  >
-                    Change
-                  </button>
-                </div>
-
-                {recordingTarget === "picker" && (
-                  <div className="relative flex flex-col items-center justify-center p-2 rounded-lg border border-[#14ad72] bg-emerald-950/90 ring-2 ring-[#14ad72]/40 animate-pulse text-center">
-                    <p className="text-[11px] font-semibold text-[#14ad72]">
-                      {recordedKeys.length > 0
-                        ? recordedKeys.map((k) => formatKeyDisplayName(k)).join(" + ")
-                        : "Press new Color Picker keys (e.g. Alt+C)..."}
-                    </p>
-                    <p className="text-[9px] text-emerald-400/60">Press Esc to cancel</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Section 3: File Explorer Context Menu */}
-              <div className="space-y-2 pt-2 border-t border-emerald-900/60">
-                <span className="text-[10px] font-medium text-emerald-400/70 uppercase tracking-wider block">
-                  File Explorer Right-Click Menu:
-                </span>
-
-                <div className="space-y-1.5">
-                  {/* Toggle 1: Enable/Disable Context Menu */}
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const next = !explorerMenuEnabled
-                      setShortcutError(null)
-                      setShortcutSuccess(null)
-                      try {
-                        const res = await invoke<{ enabled: boolean; include_extensions: boolean }>(
-                          "set_explorer_context_menu",
-                          { enabled: next }
-                        )
-                        setExplorerMenuEnabled(res.enabled)
-                        setShortcutSuccess(
-                          res.enabled
-                            ? "Explorer right-click menu enabled."
-                            : "Explorer right-click menu removed."
-                        )
-                      } catch (err) {
-                        setShortcutError(String(err))
-                      }
-                    }}
-                    className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg bg-[#06100a] border border-emerald-900/70 hover:border-emerald-700/70 transition-colors text-left"
-                  >
-                    <div className="flex items-center gap-2 pr-2">
-                      <FolderOpen className="h-3.5 w-3.5 text-[#14ad72] shrink-0" />
-                      <div>
-                        <p className="text-[11px] font-medium text-emerald-100">
-                          Copy File &amp; Folder Names
-                        </p>
-                        <p className="text-[9px] text-emerald-400/60">
-                          Adds right-click option in File Explorer
-                        </p>
-                      </div>
-                    </div>
-                    <span
-                      className={`inline-flex h-4 w-7 shrink-0 items-center rounded-full p-0.5 transition-colors ${
-                        explorerMenuEnabled ? "bg-[#14ad72]" : "bg-emerald-950 border border-emerald-800"
-                      }`}
-                    >
-                      <span
-                        className={`h-3 w-3 rounded-full bg-slate-950 transition-transform ${
-                          explorerMenuEnabled ? "translate-x-3" : "translate-x-0 bg-emerald-400/60"
-                        }`}
-                      />
-                    </span>
-                  </button>
-
-                  {/* Toggle 2: Include File Extensions */}
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const next = !explorerIncludeExt
-                      setShortcutError(null)
-                      setShortcutSuccess(null)
-                      try {
-                        const res = await invoke<{ enabled: boolean; include_extensions: boolean }>(
-                          "set_explorer_include_extensions",
-                          { includeExtensions: next }
-                        )
-                        setExplorerIncludeExt(res.include_extensions)
-                        setShortcutSuccess(
-                          res.include_extensions
-                            ? "Copying names with file extensions."
-                            : "Copying names without file extensions."
-                        )
-                      } catch (err) {
-                        setShortcutError(String(err))
-                      }
-                    }}
-                    className="w-full flex items-center justify-between px-2.5 py-2 rounded-lg bg-[#06100a] border border-emerald-900/70 hover:border-emerald-700/70 transition-colors text-left"
-                  >
-                    <div className="pr-2">
-                      <p className="text-[11px] font-medium text-emerald-100">
-                        Include File Extensions
-                      </p>
-                      <p className="text-[9px] text-emerald-400/60">
-                        {explorerIncludeExt ? "e.g. report.pdf, photo.png" : "e.g. report, photo"}
-                      </p>
-                    </div>
-                    <span
-                      className={`inline-flex h-4 w-7 shrink-0 items-center rounded-full p-0.5 transition-colors ${
-                        explorerIncludeExt ? "bg-[#14ad72]" : "bg-emerald-950 border border-emerald-800"
-                      }`}
-                    >
-                      <span
-                        className={`h-3 w-3 rounded-full bg-slate-950 transition-transform ${
-                          explorerIncludeExt ? "translate-x-3" : "translate-x-0 bg-emerald-400/60"
-                        }`}
-                      />
-                    </span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Status feedback message */}
-              {shortcutSuccess && (
-                <div className="flex items-center gap-1.5 mt-2 p-1.5 rounded-lg bg-emerald-950/90 border border-[#14ad72]/60 text-[10px] text-emerald-200">
-                  <Check className="h-3 w-3 text-[#14ad72] shrink-0" />
-                  <span>{shortcutSuccess}</span>
-                </div>
-              )}
-
-              {shortcutError && (
-                <div className="flex items-center gap-1.5 mt-2 p-1.5 rounded-lg bg-red-950/80 border border-red-500/40 text-[10px] text-red-200">
-                  <AlertCircle className="h-3 w-3 text-red-400 shrink-0" />
-                  <span>{shortcutError}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="flex items-center justify-between pt-2 border-t border-emerald-900/60 mt-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  handleResetShortcuts()
-                  handleSaveColorPickerShortcut("Alt+C")
-                }}
-                className="h-7 px-2 text-[10px] text-emerald-400/60 hover:text-emerald-200"
-              >
-                <RotateCcw className="h-3 w-3 mr-1" />
-                Reset Defaults
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => {
-                  setShowSettings(false)
-                  setRecordingTarget(null)
-                }}
-                className="h-7 px-3 text-[11px] bg-[#14ad72] hover:bg-emerald-400 text-slate-950 font-semibold"
-              >
-                Done
-              </Button>
-            </div>
-          </div>
-        </div>
+          onStartRecording={(target) => {
+            setRecordingTarget(target)
+            setRecordedKeys([])
+            setShortcutError(null)
+            setShortcutSuccess(null)
+          }}
+          onRemoveShortcut={handleRemoveShortcut}
+          onResetDefaults={() => {
+            handleResetShortcuts()
+            handleSaveColorPickerShortcut("Alt+C")
+            handleSaveSnipperShortcut("Alt+S")
+          }}
+          onExplorerMenuChange={setExplorerMenuEnabled}
+          onExplorerExtChange={setExplorerIncludeExt}
+          onFeedback={(success, error) => {
+            setShortcutSuccess(success)
+            setShortcutError(error)
+          }}
+        />
       )}
 
       {/* Clear History Confirmation Modal */}
