@@ -33,6 +33,7 @@ export type ModuleId =
   | "black_screen"
   | "power_timer"
   | "explorer_copy_names"
+  | "movie_posters"
 
 export interface ModuleFlags {
   clipboard: boolean
@@ -41,4 +42,19 @@ export interface ModuleFlags {
   black_screen: boolean
   power_timer: boolean
   explorer_copy_names: boolean
+  movie_posters: boolean
+}
+
+export interface PosterCandidate {
+  title: string
+  year: string
+  poster_url: string
+  source: string
+}
+
+export interface SubfolderScanItem {
+  path: string
+  name: string
+  parsed_query: string
+  has_poster: boolean
 }

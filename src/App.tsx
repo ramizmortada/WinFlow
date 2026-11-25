@@ -84,6 +84,7 @@ export default function App() {
     black_screen: true,
     power_timer: true,
     explorer_copy_names: true,
+    movie_posters: false,
   })
   const [shutdownStatus, setShutdownStatus] = useState<ShutdownTimerStatus>({
     active: false,

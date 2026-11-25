@@ -2,6 +2,7 @@ mod black_screen;
 mod clipboard;
 mod color_picker;
 mod explorer_menu;
+mod movie_poster;
 mod shutdown_timer;
 mod snipper;
 
@@ -38,6 +39,8 @@ pub struct ModuleFlags {
     pub power_timer: bool,
     #[serde(default = "default_true")]
     pub explorer_copy_names: bool,
+    #[serde(default)]
+    pub movie_posters: bool,
 }
 
 impl Default for ModuleFlags {
@@ -49,6 +52,7 @@ impl Default for ModuleFlags {
             black_screen: true,
             power_timer: true,
             explorer_copy_names: true,
+            movie_posters: false,
         }
     }
 }
@@ -638,6 +642,13 @@ fn open_hub_window(app: AppHandle, module: Option<String>) {
 }
 
 #[tauri::command]
+fn close_hub_window(app: AppHandle) {
+    if let Some(hub_win) = app.get_webview_window("hub") {
+        let _ = hub_win.hide();
+    }
+}
+
+#[tauri::command]
 fn open_tools_window(app: AppHandle) {
     open_hub_window(app, Some("power_timer".to_string()));
 }
@@ -703,6 +714,10 @@ fn set_module_enabled(
             modules.explorer_copy_names = enabled;
             state.explorer_settings.lock().unwrap().enabled = enabled;
         }
+        "movie_posters" => {
+            explorer_menu::set_poster_context_menu(enabled)?;
+            modules.movie_posters = enabled;
+        }
         other => return Err(format!("Unknown module '{}'", other)),
     }
 
@@ -739,6 +754,51 @@ fn cancel_shutdown_timer(
     state: State<'_, AppState>,
 ) -> shutdown_timer::ShutdownTimerStatus {
     state.shutdown_timer.cancel(app)
+}
+
+#[tauri::command]
+fn parse_movie_folder_query(folder_path: String) -> (String, Option<String>) {
+    let name = std::path::Path::new(&folder_path)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or(folder_path);
+    movie_poster::parse_movie_folder_name(&name)
+}
+
+#[tauri::command]
+async fn search_movie_posters(
+    query: String,
+    year_hint: Option<String>,
+) -> Result<Vec<movie_poster::PosterCandidate>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        movie_poster::search_itunes_posters(&query, year_hint.as_deref())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn apply_movie_poster(folder_path: String, poster_url: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        movie_poster::apply_poster_to_folder(&folder_path, &poster_url)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn reset_movie_poster(folder_path: String) -> Result<(), String> {
+    movie_poster::reset_folder_poster(&folder_path)
+}
+
+#[tauri::command]
+fn scan_movie_subfolders(parent_path: String) -> Result<Vec<movie_poster::SubfolderScanItem>, String> {
+    movie_poster::scan_movie_subfolders(&parent_path)
+}
+
+#[tauri::command]
+fn take_pending_poster_folders() -> Vec<movie_poster::SubfolderScanItem> {
+    movie_poster::take_pending_poster_folders()
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -839,6 +899,44 @@ pub fn run() {
 
             // Sync Windows File Explorer context menu registry entries
             let _ = explorer_menu::set_explorer_context_menu(saved_modules.explorer_copy_names);
+            let _ = explorer_menu::set_poster_context_menu(saved_modules.movie_posters);
+
+            // Listen for Explorer `--find-poster` signal from secondary launches
+            #[cfg(windows)]
+            {
+                let app_for_poster = app_handle.clone();
+                std::thread::spawn(move || {
+                    use windows_sys::Win32::Foundation::WAIT_OBJECT_0;
+                    use windows_sys::Win32::System::Threading::{
+                        CreateEventW, WaitForSingleObject, INFINITE,
+                    };
+                    let ev_name: Vec<u16> = "Local\\WinFlowFindPosterEvent\0"
+                        .encode_utf16()
+                        .collect();
+                    let h_ev = unsafe { CreateEventW(std::ptr::null(), 0, 0, ev_name.as_ptr()) };
+                    if !h_ev.is_null() {
+                        loop {
+                            let res = unsafe { WaitForSingleObject(h_ev, INFINITE) };
+                            if res == WAIT_OBJECT_0 {
+                                open_hub_window(
+                                    app_for_poster.clone(),
+                                    Some("movie_posters".to_string()),
+                                );
+                                std::thread::sleep(std::time::Duration::from_millis(80));
+                                let _ = app_for_poster.emit("hub-select-module", "movie_posters");
+                                let _ = app_for_poster.emit("movie-poster-folders-ready", ());
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                });
+            }
+
+            // If launched cold with `--find-poster`, open Hub directly on movie_posters
+            if std::env::temp_dir().join("winflow_find_poster_batch.txt").exists() {
+                open_hub_window(app_handle.clone(), Some("movie_posters".to_string()));
+            }
 
             if saved_modules.clipboard {
                 for sc in &saved_shortcuts {
@@ -968,7 +1066,14 @@ pub fn run() {
             get_shutdown_timer_status,
             start_shutdown_timer,
             cancel_shutdown_timer,
+            parse_movie_folder_query,
+            search_movie_posters,
+            apply_movie_poster,
+            reset_movie_poster,
+            scan_movie_subfolders,
+            take_pending_poster_folders,
             open_hub_window,
+            close_hub_window,
             open_tools_window,
             get_modules_config,
             set_module_enabled,

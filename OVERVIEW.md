@@ -30,11 +30,20 @@ WinFlow is a lightweight, fast Windows desktop utilities companion built with **
   - **Options:** *Graceful (do not force close apps)* and *Prevent system from going to sleep* while counting down.
   - **Scheduling:** *After a specific timespan* (`Hours / Minutes / Seconds` + `15m / 30m / 1h / 2h` presets) or *At a specific time of day*.
 
-### 5. Snipping Tool (`Alt + S`)
+### 5. Snipping Tool (`Ctrl + Shift + S`)
 - **Capture Modes:** **Region** (drag to crop), **Window** (hover & click any visible window), and **Fullscreen**.
 - **Delay Timer:** `0s`, `3s`, `5s`, or `10s` delay selector on the floating capture bar.
 - **Annotations:** Arrow, Rectangle, freehand Highlighter, Blur/Redact, Text, color & stroke picker, Undo, and Clear.
-- **Actions:** **Copy** to clipboard (and WinFlow history), **Save** PNG to Pictures/Downloads, or **Pin to Screen** as an always-on-top floating reference window.
+- **Actions:** **Copy Image**, **Copy Text** (built-in Windows OCR that copies & closes immediately), **Save** PNG to Pictures/Downloads, or **Pin to Screen** as an always-on-top floating reference window (with taskbar minimize, drag, Copy Image, and Copy Text).
+
+### 6. WinFlow Hub (Modular Launcher)
+- Dedicated `740×520` two-column launcher & settings window where every WinFlow module can be toggled **On/Off** (dynamically registering/unregistering global shortcuts and Explorer context menu entries).
+- Houses the embedded **Power Timer** and **Movie Folder Posters** panels alongside **General & Updates**.
+
+### 7. Movie Folder Posters (`winflow_thumb.dll`)
+- **Zero-Key Search:** Cleans messy folder names (`1080p`, `BluRay`, `YTS`, years) and fetches high-resolution movie posters via IMDb's public search.
+- **HD Folder Thumbnails:** Native Rust `IThumbnailProvider` COM extension (`winflow_thumb.dll`, registered per-user in `HKCU` with `DisableProcessIsolation`) renders `poster.jpg` up to `1024×1024` in File Explorer.
+- **Bulk & Custom Support:** Supports multi-selecting folders in File Explorer (**Find Movie Poster** / **Reset Folder Icon**), scanning parent `Movies/` directories (**Auto-Apply Missing** / **Reset All**), and applying custom posters via **URL** or **local file picker**.
 
 ---
 

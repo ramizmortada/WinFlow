@@ -14,8 +14,10 @@ A fast, lightweight, and modern clipboard manager and desktop utilities companio
 - ✂️ **Snipping Tool (`Alt + S`)**: Capture **Region**, **Window**, or **Fullscreen** with optional `0s / 3s / 5s / 10s` delay timer, built-in annotations (Arrow, Box, Highlighter, Blur/Redact, Text), and **Copy / Save / Pin to Screen** actions.
 - 🎨 **Screen Color Picker (`Alt + C`)**: Instant magnifying loupe that samples any pixel on your desktop and copies the `#HEX` code with one click.
 - 🎨 **Color History Filter**: Dedicated color filter tab to quickly browse, review, and copy your captured palette colors.
-- 📁 **File Explorer Right-Click Copy Names**: Context menu integration in Windows File Explorer to copy all file & folder names inside a directory or from a multi-selection (with a Settings toggle for including/stripping file extensions).
-- 🌑 **Black Screen Mode**: Pure-black fullscreen overlay across all monitors with hidden cursor (press any key or click anywhere to exit), accessible from Desktop Tools or the system tray.
+- 📁 **File Explorer Right-Click Copy Names**: Context menu integration in Windows File Explorer to copy all file & folder names inside a directory or from a multi-selection (with a toggle for including/stripping file extensions).
+- 🎬 **Movie Folder Posters**: Replace folder thumbnails with HD movie posters (up to `1024×1024` via a native `IThumbnailProvider` COM extension) using IMDb search (no API key required), custom URLs, or local image files — supports single folders, multi-select bulk apply, and 1-click Reset.
+- 🧩 **WinFlow Hub (Modular Launcher)**: Dedicated PowerToys-style Hub window to toggle modules On/Off, customize global shortcuts, and manage tools independently.
+- 🌑 **Black Screen Mode**: Pure-black fullscreen overlay across all monitors with hidden cursor (press any key or click anywhere to exit).
 - ⏱️ **Power / Shutdown Timer**: Schedule **Shutdown**, **Restart**, **Sleep**, **Lock**, or **Log Out** after a specific timespan (`H:M:S` or presets) or at a specific time of day, with **Graceful** and **Prevent system from going to sleep** options.
 - 🔄 **Smart Deduplication & Reordering**: Re-copying an item moves it straight to the top of your history with a refreshed timestamp.
 - ⚡ **Instant Paste on Click / Enter**: Selecting any card or pressing `Enter` automatically writes to clipboard, closes the palette, and simulates `Ctrl + V` into your active input field.

@@ -6,6 +6,7 @@ import {
   AlertCircle,
   Check,
   ClipboardList,
+  Film,
   FolderOpen,
   Keyboard,
   Minus,
@@ -24,6 +25,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import PowerTimerPanel from "@/components/PowerTimerPanel"
+import MoviePosterPanel from "@/components/MoviePosterPanel"
 import { formatKeyDisplayName } from "@/lib/formatters"
 import type { ExplorerSettings, ModuleFlags, ModuleId, ShutdownTimerStatus } from "@/types"
 
@@ -91,6 +93,15 @@ const MODULES: ModuleMeta[] = [
     Icon: FolderOpen,
     launchable: false,
   },
+  {
+    id: "movie_posters",
+    name: "Movie Folder Posters",
+    tagline: "Set folder icons to film posters",
+    description:
+      "Fetches movie posters via IMDb public search (no API key required) and sets them as Windows folder icons.",
+    Icon: Film,
+    launchable: false,
+  },
 ]
 
 export default function HubWindow() {
@@ -102,6 +113,7 @@ export default function HubWindow() {
     black_screen: true,
     power_timer: true,
     explorer_copy_names: true,
+    movie_posters: false,
   })
   const [globalShortcuts, setGlobalShortcuts] = useState<string[]>(["Alt+V"])
   const [colorPickerShortcut, setColorPickerShortcut] = useState<string>("Alt+C")
@@ -291,7 +303,7 @@ export default function HubWindow() {
           </div>
           <span className="text-xs font-semibold tracking-wide text-emerald-50">WinFlow Hub</span>
           <span className="px-1.5 py-0.5 rounded-md bg-emerald-950 border border-emerald-800/70 text-[10px] font-mono text-emerald-400">
-            v0.2.5
+            v0.2.6
           </span>
         </div>
 
@@ -306,7 +318,7 @@ export default function HubWindow() {
           </button>
           <button
             type="button"
-            onClick={() => getCurrentWebviewWindow().hide().catch(() => {})}
+            onClick={() => invoke("close_hub_window").catch(() => getCurrentWebviewWindow().hide().catch(() => {}))}
             className="p-1.5 rounded-lg text-emerald-400/70 hover:text-red-300 hover:bg-red-500/15"
             title="Close to Tray"
           >
@@ -655,6 +667,11 @@ export default function HubWindow() {
                     disabled={!modules.power_timer}
                     onShutdownStatusChange={setShutdownStatus}
                   />
+                )}
+
+                {/* Embedded Movie Folder Posters Panel */}
+                {currentMeta.id === "movie_posters" && (
+                  <MoviePosterPanel disabled={!modules.movie_posters} />
                 )}
               </div>
             )
