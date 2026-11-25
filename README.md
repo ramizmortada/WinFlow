@@ -13,6 +13,9 @@ A fast, lightweight, and modern clipboard manager and desktop utilities companio
 - 📋 **Text & Screenshot Capture**: Automatically listens to clipboard updates and stores plain/rich text, code blocks, URLs, and high-resolution screenshots.
 - 🎨 **Screen Color Picker (`Alt + C`)**: Instant magnifying loupe that samples any pixel on your desktop and copies the `#HEX` code with one click.
 - 🎨 **Color History Filter**: Dedicated color filter tab to quickly browse, review, and copy your captured palette colors.
+- 📁 **File Explorer Right-Click Copy Names**: Context menu integration in Windows File Explorer to copy all file & folder names inside a directory or from a multi-selection (with a Settings toggle for including/stripping file extensions).
+- 🌑 **Black Screen Mode**: Pure-black fullscreen overlay across all monitors with hidden cursor (press any key or click anywhere to exit), accessible from Desktop Tools or the system tray.
+- ⏱️ **Power / Shutdown Timer**: Schedule **Shutdown**, **Restart**, **Sleep**, **Lock**, or **Log Out** after a specific timespan (`H:M:S` or presets) or at a specific time of day, with **Graceful** and **Prevent system from going to sleep** options.
 - 🔄 **Smart Deduplication & Reordering**: Re-copying an item moves it straight to the top of your history with a refreshed timestamp.
 - ⚡ **Instant Paste on Click / Enter**: Selecting any card or pressing `Enter` automatically writes to clipboard, closes the palette, and simulates `Ctrl + V` into your active input field.
 - 📌 **Recent & Pinned Tabs**: Dedicated tab for pinned snippets and persistent items that survive history clears and computer restarts.

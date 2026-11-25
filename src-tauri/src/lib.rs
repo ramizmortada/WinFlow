@@ -1,6 +1,8 @@
+mod black_screen;
 mod clipboard;
 mod color_picker;
 mod explorer_menu;
+mod shutdown_timer;
 
 pub fn try_handle_cli() -> bool {
     explorer_menu::try_handle_cli()
@@ -112,6 +114,7 @@ pub struct AppState {
     pub current_shortcuts: Arc<Mutex<Vec<String>>>,
     pub color_picker_shortcut: Arc<Mutex<String>>,
     pub explorer_settings: Arc<Mutex<ExplorerSettings>>,
+    pub shutdown_timer: Arc<shutdown_timer::ShutdownTimerManager>,
 }
 
 #[cfg(windows)]
@@ -345,6 +348,11 @@ fn toggle_window(app: AppHandle) {
             let _ = color_picker::cancel_color_picker(app.clone());
         }
     }
+    if let Some(bs) = app.get_webview_window("blackscreen") {
+        if bs.is_visible().unwrap_or(false) {
+            let _ = black_screen::stop_black_screen(app.clone());
+        }
+    }
 
     if let Some(window) = app.get_webview_window("main") {
         if window.is_visible().unwrap_or(false) {
@@ -516,6 +524,28 @@ fn set_explorer_include_extensions(
     Ok(updated)
 }
 
+#[tauri::command]
+fn get_shutdown_timer_status(state: State<'_, AppState>) -> shutdown_timer::ShutdownTimerStatus {
+    state.shutdown_timer.get_status()
+}
+
+#[tauri::command]
+fn start_shutdown_timer(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    request: shutdown_timer::StartPowerTimerRequest,
+) -> Result<shutdown_timer::ShutdownTimerStatus, String> {
+    state.shutdown_timer.start(app, request)
+}
+
+#[tauri::command]
+fn cancel_shutdown_timer(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> shutdown_timer::ShutdownTimerStatus {
+    state.shutdown_timer.cancel(app)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let manager = Arc::new(ClipboardManager::new());
@@ -525,6 +555,7 @@ pub fn run() {
         enabled: true,
         include_extensions: true,
     }));
+    let shutdown_timer = Arc::new(shutdown_timer::ShutdownTimerManager::new());
 
     let manager_for_thread = Arc::clone(&manager);
     let manager_for_setup = Arc::clone(&manager);
@@ -538,6 +569,7 @@ pub fn run() {
             current_shortcuts,
             color_picker_shortcut,
             explorer_settings,
+            shutdown_timer,
         })
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -610,9 +642,21 @@ pub fn run() {
             // Create System Tray Menu
             let show_i = MenuItem::with_id(app, "show", "Open WinFlow", true, None::<&str>)?;
             let picker_i = MenuItem::with_id(app, "color_picker", "Color Picker (Alt+C)", true, None::<&str>)?;
+            let black_screen_i = MenuItem::with_id(app, "black_screen", "Black Screen", true, None::<&str>)?;
+            let shutdown_timer_i = MenuItem::with_id(app, "shutdown_timer", "Shutdown Timer...", true, None::<&str>)?;
             let update_i = MenuItem::with_id(app, "check_update", "Check for Updates...", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "Quit WinFlow", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show_i, &picker_i, &update_i, &quit_i])?;
+            let menu = Menu::with_items(
+                app,
+                &[
+                    &show_i,
+                    &picker_i,
+                    &black_screen_i,
+                    &shutdown_timer_i,
+                    &update_i,
+                    &quit_i,
+                ],
+            )?;
 
             let _tray = TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
@@ -627,6 +671,17 @@ pub fn run() {
                     }
                     "color_picker" => {
                         let _ = color_picker::toggle_color_picker(app.clone());
+                    }
+                    "black_screen" => {
+                        let _ = black_screen::start_black_screen(app.clone());
+                    }
+                    "shutdown_timer" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            if !window.is_visible().unwrap_or(false) {
+                                toggle_window(app.clone());
+                            }
+                        }
+                        let _ = app.emit("open-tools-modal", ());
                     }
                     "check_update" => {
                         toggle_window(app.clone());
@@ -676,6 +731,11 @@ pub fn run() {
             get_explorer_settings,
             set_explorer_context_menu,
             set_explorer_include_extensions,
+            get_shutdown_timer_status,
+            start_shutdown_timer,
+            cancel_shutdown_timer,
+            black_screen::start_black_screen,
+            black_screen::stop_black_screen,
             color_picker::start_color_picker,
             color_picker::toggle_color_picker,
             color_picker::finish_color_picker,
