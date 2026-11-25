@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core"
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu"
 import {
   AlertCircle,
+  ArrowLeft,
   Check,
   ChevronDown,
   ChevronUp,
@@ -22,13 +23,15 @@ import type { PowerAction, ShutdownTimerStatus } from "@/types"
 interface ToolsModalProps {
   shutdownStatus: ShutdownTimerStatus
   onShutdownStatusChange: (status: ShutdownTimerStatus) => void
-  onClose: () => void
+  onBack: () => void
+  onCloseWindow: () => void
 }
 
 export default function ToolsModal({
   shutdownStatus,
   onShutdownStatusChange,
-  onClose,
+  onBack,
+  onCloseWindow,
 }: ToolsModalProps) {
   const [powerAction, setPowerAction] = useState<PowerAction>("shutdown")
   const [gracefulShutdown, setGracefulShutdown] = useState<boolean>(false)
@@ -45,6 +48,14 @@ export default function ToolsModal({
       {/* Panel Header */}
       <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-emerald-900/60 bg-[#091710]/80">
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onBack}
+            className="p-1 rounded-md text-emerald-400 hover:text-emerald-200 hover:bg-emerald-900/40"
+            title="Back to Clipboard (Esc)"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
           <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-500/10 text-[#14ad72] border border-emerald-500/20">
             <Wrench className="h-3.5 w-3.5" />
           </div>
@@ -56,9 +67,10 @@ export default function ToolsModal({
           </div>
         </div>
         <button
-          onClick={onClose}
+          type="button"
+          onClick={onCloseWindow}
           className="p-1 rounded-md text-emerald-400 hover:text-emerald-200 hover:bg-emerald-900/40"
-          title="Back to Clipboard (Esc)"
+          title="Close Window"
         >
           <X className="h-4 w-4" />
         </button>
@@ -70,7 +82,7 @@ export default function ToolsModal({
         <button
           type="button"
           onClick={() => {
-            onClose()
+            onBack()
             invoke("start_black_screen").catch((err) => setToolsError(String(err)))
           }}
           className="w-full shrink-0 flex items-center justify-between px-3 py-2 rounded-xl bg-[#0b1811] border border-emerald-900/70 hover:border-[#14ad72]/60 hover:bg-[#0f2218] transition-all text-left group"

@@ -7,12 +7,14 @@
     "picker",
     "blackscreen",
     "snipper",
-    "pinned-snip"
+    "pinned-snip",
+    "hub"
   ],
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",
     "core:window:allow-minimize",
+    "core:window:allow-close",
     "global-shortcut:default",
     "clipboard-manager:default",
     "autostart:default",

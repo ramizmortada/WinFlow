@@ -25,3 +25,20 @@ export interface ExplorerSettings {
   enabled: boolean
   include_extensions: boolean
 }
+
+export type ModuleId =
+  | "clipboard"
+  | "snipper"
+  | "color_picker"
+  | "black_screen"
+  | "power_timer"
+  | "explorer_copy_names"
+
+export interface ModuleFlags {
+  clipboard: boolean
+  snipper: boolean
+  color_picker: boolean
+  black_screen: boolean
+  power_timer: boolean
+  explorer_copy_names: boolean
+}

@@ -20,9 +20,9 @@ import {
   Pipette,
   ChevronUp,
   ChevronDown,
-  Wrench,
   Timer,
   Scissors,
+  Moon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -30,8 +30,8 @@ import ColorPickerOverlay from "./components/ColorPickerOverlay"
 import BlackScreenOverlay from "./components/BlackScreenOverlay"
 import SnipperOverlay from "./components/SnipperOverlay"
 import PinnedSnipWindow from "./components/PinnedSnipWindow"
+import HubWindow from "./components/HubWindow"
 import ClipboardItemCard from "./components/ClipboardItemCard"
-import ToolsModal from "./components/ToolsModal"
 import SettingsModal from "./components/SettingsModal"
 import {
   formatCountdown,
@@ -41,6 +41,7 @@ import {
 } from "@/lib/formatters"
 import type {
   ClipboardItem,
+  ModuleFlags,
   ShutdownTimerStatus,
 } from "@/types"
 
@@ -76,7 +77,14 @@ export default function App() {
   const [shortcutSuccess, setShortcutSuccess] = useState<string | null>(null)
   const [explorerMenuEnabled, setExplorerMenuEnabled] = useState<boolean>(true)
   const [explorerIncludeExt, setExplorerIncludeExt] = useState<boolean>(true)
-  const [showTools, setShowTools] = useState<boolean>(false)
+  const [modules, setModules] = useState<ModuleFlags>({
+    clipboard: true,
+    snipper: true,
+    color_picker: true,
+    black_screen: true,
+    power_timer: true,
+    explorer_copy_names: true,
+  })
   const [shutdownStatus, setShutdownStatus] = useState<ShutdownTimerStatus>({
     active: false,
     remaining_seconds: 0,
@@ -114,7 +122,8 @@ export default function App() {
       windowLabel === "picker" ||
       windowLabel === "blackscreen" ||
       windowLabel === "snipper" ||
-      windowLabel === "pinned-snip"
+      windowLabel === "pinned-snip" ||
+      windowLabel === "hub"
     )
       return
 
@@ -173,6 +182,11 @@ export default function App() {
       })
       .catch(() => {})
 
+    // Fetch ModuleFlags
+    invoke<ModuleFlags>("get_modules_config")
+      .then((m) => m && setModules(m))
+      .catch(() => {})
+
     // Listen for live updates emitted by Rust background thread
     let unlistenClipboard: (() => void) | undefined
     listen<ClipboardItem[]>("clipboard-updated", (event) => {
@@ -205,14 +219,13 @@ export default function App() {
       })
       .catch(() => {})
 
-    // Listen for open-tools-modal from System Tray
-    let unlistenOpenTools: (() => void) | undefined
-    listen("open-tools-modal", () => {
-      setShowTools(true)
-      setShowSettings(false)
+    // Listen for modules-updated
+    let unlistenModules: (() => void) | undefined
+    listen<ModuleFlags>("modules-updated", (event) => {
+      setModules(event.payload)
     })
       .then((fn) => {
-        unlistenOpenTools = fn
+        unlistenModules = fn
       })
       .catch(() => {})
 
@@ -241,7 +254,7 @@ export default function App() {
       if (unlistenClipboard) unlistenClipboard()
       if (unlistenTrayUpdate) unlistenTrayUpdate()
       if (unlistenTimerTick) unlistenTimerTick()
-      if (unlistenOpenTools) unlistenOpenTools()
+      if (unlistenModules) unlistenModules()
       window.removeEventListener("focus", handleFocus)
       clearInterval(interval)
     }
@@ -645,8 +658,6 @@ export default function App() {
       if (e.key === "Escape") {
         if (previewImage) {
           setPreviewImage(null)
-        } else if (showTools) {
-          setShowTools(false)
         } else if (showSettings) {
           setShowSettings(false)
         } else if (showClearConfirm) {
@@ -657,7 +668,7 @@ export default function App() {
         return
       }
 
-      if (showSettings || showClearConfirm || showTools) return
+      if (showSettings || showClearConfirm) return
 
       if (e.key === "ArrowDown") {
         e.preventDefault()
@@ -699,7 +710,7 @@ export default function App() {
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [filteredItems, selectedIndex, previewImage, showSettings, showClearConfirm, showTools, recordingTarget])
+  }, [filteredItems, selectedIndex, previewImage, showSettings, showClearConfirm, recordingTarget])
 
   // If this window is the fullscreen Color Picker overlay, render ColorPickerOverlay
   if (windowLabel === "picker") {
@@ -719,6 +730,11 @@ export default function App() {
   // If this window is a pinned snip, render PinnedSnipWindow
   if (windowLabel === "pinned-snip") {
     return <PinnedSnipWindow />
+  }
+
+  // If this window is the WinFlow Hub, render HubWindow
+  if (windowLabel === "hub") {
+    return <HubWindow />
   }
 
   const pinnedCount = useMemo(() => items.filter((i) => i.is_pinned).length, [items])
@@ -761,8 +777,8 @@ export default function App() {
           {/* Active Shutdown Timer Pill */}
           {shutdownStatus.active && (
             <button
-              onClick={() => setShowTools(true)}
-              title="Shutdown Timer Active — Click to manage"
+              onClick={() => invoke("open_hub_window", { module: "power_timer" }).catch(() => {})}
+              title="Power Timer Active — Click to manage in WinFlow Hub"
               className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/40 text-amber-300 text-[10px] font-mono hover:bg-amber-500/25 transition-colors"
             >
               <Timer className="h-3 w-3 animate-pulse" />
@@ -770,50 +786,51 @@ export default function App() {
             </button>
           )}
 
-          {/* Desktop Tools Button (Black Screen & Shutdown Timer) */}
-          <Button
-            variant="ghost"
-            size="iconSm"
-            onClick={() => setShowTools(true)}
-            title="Desktop Tools (Black Screen & Shutdown Timer)"
-            className="text-emerald-400/70 hover:text-[#14ad72] hover:bg-emerald-900/40 h-6 w-6"
-          >
-            <Wrench className="h-3.5 w-3.5" />
-          </Button>
+          {/* Black Screen Quick Button */}
+          {modules.black_screen && (
+            <Button
+              variant="ghost"
+              size="iconSm"
+              onClick={() => invoke("start_black_screen").catch(() => {})}
+              title="Black Screen"
+              className="text-emerald-400/70 hover:text-[#14ad72] hover:bg-emerald-900/40 h-6 w-6"
+            >
+              <Moon className="h-3.5 w-3.5" />
+            </Button>
+          )}
 
           {/* Snipping Tool Button */}
-          <Button
-            variant="ghost"
-            size="iconSm"
-            onClick={() => invoke("start_snipper").catch(() => {})}
-            title={`Snipping Tool (${formatShortcutDisplay(snipperShortcut)})`}
-            className="text-emerald-400/70 hover:text-[#14ad72] hover:bg-emerald-900/40 h-6 w-6"
-          >
-            <Scissors className="h-3.5 w-3.5" />
-          </Button>
+          {modules.snipper && (
+            <Button
+              variant="ghost"
+              size="iconSm"
+              onClick={() => invoke("start_snipper").catch(() => {})}
+              title={`Snipping Tool (${formatShortcutDisplay(snipperShortcut)})`}
+              className="text-emerald-400/70 hover:text-[#14ad72] hover:bg-emerald-900/40 h-6 w-6"
+            >
+              <Scissors className="h-3.5 w-3.5" />
+            </Button>
+          )}
 
           {/* Color Picker Eyedropper Button */}
-          <Button
-            variant="ghost"
-            size="iconSm"
-            onClick={() => invoke("start_color_picker").catch(() => {})}
-            title={`Screen Color Picker (${formatShortcutDisplay(colorPickerShortcut)})`}
-            className="text-emerald-400/70 hover:text-[#14ad72] hover:bg-emerald-900/40 h-6 w-6"
-          >
-            <Pipette className="h-3.5 w-3.5" />
-          </Button>
+          {modules.color_picker && (
+            <Button
+              variant="ghost"
+              size="iconSm"
+              onClick={() => invoke("start_color_picker").catch(() => {})}
+              title={`Screen Color Picker (${formatShortcutDisplay(colorPickerShortcut)})`}
+              className="text-emerald-400/70 hover:text-[#14ad72] hover:bg-emerald-900/40 h-6 w-6"
+            >
+              <Pipette className="h-3.5 w-3.5" />
+            </Button>
+          )}
 
-          {/* Settings Button */}
+          {/* WinFlow Hub / Settings Button */}
           <Button
             variant="ghost"
             size="iconSm"
-            onClick={() => {
-              setShowSettings(true)
-              setShortcutError(null)
-              setShortcutSuccess(null)
-              setRecordingTarget(null)
-            }}
-            title="Settings & Shortcuts"
+            onClick={() => invoke("open_hub_window").catch(() => setShowSettings(true))}
+            title="Open WinFlow Hub & Settings"
             className="text-emerald-400/70 hover:text-[#14ad72] hover:bg-emerald-900/40 h-6 w-6"
           >
             <Settings className="h-3.5 w-3.5" />
@@ -1081,15 +1098,6 @@ export default function App() {
             {isUpdating ? updateStatusText : "Update & Restart"}
           </Button>
         </div>
-      )}
-
-      {/* Desktop Tools Panel */}
-      {showTools && (
-        <ToolsModal
-          shutdownStatus={shutdownStatus}
-          onShutdownStatusChange={setShutdownStatus}
-          onClose={() => setShowTools(false)}
-        />
       )}
 
       {/* Settings Modal */}

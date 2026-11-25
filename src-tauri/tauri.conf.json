@@ -71,7 +71,23 @@
         "decorations": false,
         "alwaysOnTop": true,
         "skipTaskbar": false,
-        "shadow": true,
+        "shadow": false,
+        "center": true,
+        "visible": false
+      },
+      {
+        "label": "hub",
+        "title": "WinFlow Hub",
+        "width": 740,
+        "height": 520,
+        "minWidth": 660,
+        "minHeight": 460,
+        "resizable": true,
+        "transparent": true,
+        "decorations": false,
+        "alwaysOnTop": false,
+        "skipTaskbar": false,
+        "shadow": false,
         "center": true,
         "visible": false
       }
