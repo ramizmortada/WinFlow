@@ -49,8 +49,8 @@ A fast, lightweight, and modern clipboard manager and desktop utilities companio
 
 ```bash
 # Clone the repository
-git clone https://github.com/ramizmortada/QuickClip.git
-cd QuickClip
+git clone https://github.com/ramizmortada/WinFlow.git
+cd WinFlow
 
 # Install dependencies
 npm install
@@ -73,7 +73,7 @@ The compiled executable and installer will be generated in `src-tauri/target/rel
 | Shortcut | Action |
 | :--- | :--- |
 | `Alt + V` | Open / Toggle WinFlow Clipboard anywhere |
-| `Alt + S` | Open Snipping Tool |
+| `Ctrl + Shift + S` | Open Snipping Tool |
 | `Alt + C` | Open / Toggle Screen Color Picker |
 | `↑` / `↓` | Navigate clipboard items |
 | `Enter` | Paste selected item into active field |
