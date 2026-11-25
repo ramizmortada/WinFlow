@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "WinFlow",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "identifier": "com.winflow.app",
   "build": {
     "frontendDist": "../dist",
@@ -70,7 +70,7 @@
         "transparent": true,
         "decorations": false,
         "alwaysOnTop": true,
-        "skipTaskbar": true,
+        "skipTaskbar": false,
         "shadow": true,
         "center": true,
         "visible": false

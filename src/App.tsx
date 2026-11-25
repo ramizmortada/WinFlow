@@ -69,7 +69,7 @@ export default function App() {
   const [showSettings, setShowSettings] = useState<boolean>(false)
   const [globalShortcuts, setGlobalShortcuts] = useState<string[]>(["Alt+V"])
   const [colorPickerShortcut, setColorPickerShortcut] = useState<string>("Alt+C")
-  const [snipperShortcut, setSnipperShortcut] = useState<string>("Alt+S")
+  const [snipperShortcut, setSnipperShortcut] = useState<string>("Ctrl+Shift+S")
   const [recordingTarget, setRecordingTarget] = useState<"clipboard" | "picker" | "snipper" | null>(null)
   const [recordedKeys, setRecordedKeys] = useState<string[]>([])
   const [shortcutError, setShortcutError] = useState<string | null>(null)
@@ -1118,7 +1118,7 @@ export default function App() {
           onResetDefaults={() => {
             handleResetShortcuts()
             handleSaveColorPickerShortcut("Alt+C")
-            handleSaveSnipperShortcut("Alt+S")
+            handleSaveSnipperShortcut("Ctrl+Shift+S")
           }}
           onExplorerMenuChange={setExplorerMenuEnabled}
           onExplorerExtChange={setExplorerIncludeExt}

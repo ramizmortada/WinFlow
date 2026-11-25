@@ -1,6 +1,6 @@
 [package]
 name = "winflow"
-version = "0.2.4"
+version = "0.2.5"
 description = "WinFlow - Fast, lightweight Windows Clipboard Manager & Desktop Utilities"
 authors = ["you"]
 edition = "2021"
@@ -41,4 +41,12 @@ windows-sys = { version = "0.60", features = [
     "Win32_System_Threading",
     "Win32_Security",
     "Win32_System_Power"
+] }
+windows = { version = "0.58", features = [
+    "Foundation",
+    "Foundation_Collections",
+    "Graphics_Imaging",
+    "Media_Ocr",
+    "Storage_Streams",
+    "Globalization"
 ] }

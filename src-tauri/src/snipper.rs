@@ -390,9 +390,88 @@ pub fn get_pinned_snip_data() -> Option<String> {
 }
 
 #[tauri::command]
+pub fn minimize_pinned_snip(app: AppHandle) {
+    if let Some(pin_win) = app.get_webview_window("pinned-snip") {
+        let _ = pin_win.minimize();
+    }
+}
+
+#[tauri::command]
 pub fn close_pinned_snip(app: AppHandle) {
     if let Some(pin_win) = app.get_webview_window("pinned-snip") {
         let _ = pin_win.hide();
     }
     *PINNED_SNIP_DATA.lock() = None;
+}
+
+#[cfg(windows)]
+#[tauri::command]
+pub fn ocr_snip_image(app: AppHandle, data_url: String) -> Result<String, String> {
+    use windows::Graphics::Imaging::{BitmapAlphaMode, BitmapPixelFormat, SoftwareBitmap};
+    use windows::Media::Ocr::OcrEngine;
+    use windows::Storage::Streams::DataWriter;
+
+    let base64_str = data_url.trim_start_matches("data:image/png;base64,");
+    let png_bytes = base64::engine::general_purpose::STANDARD
+        .decode(base64_str)
+        .map_err(|e| e.to_string())?;
+
+    let img = image::load_from_memory(&png_bytes).map_err(|e| e.to_string())?;
+    let rgba = img.to_rgba8();
+    let (w, h) = rgba.dimensions();
+
+    let writer = DataWriter::new().map_err(|e| e.to_string())?;
+    writer
+        .WriteBytes(rgba.as_raw())
+        .map_err(|e| e.to_string())?;
+    let buffer = writer.DetachBuffer().map_err(|e| e.to_string())?;
+
+    let bitmap = SoftwareBitmap::CreateCopyWithAlphaFromBuffer(
+        &buffer,
+        BitmapPixelFormat::Rgba8,
+        w as i32,
+        h as i32,
+        BitmapAlphaMode::Premultiplied,
+    )
+    .map_err(|e| e.to_string())?;
+
+    let engine = OcrEngine::TryCreateFromUserProfileLanguages()
+        .map_err(|e| format!("Windows OCR is not available: {}", e))?;
+
+    let result = engine
+        .RecognizeAsync(&bitmap)
+        .map_err(|e| e.to_string())?
+        .get()
+        .map_err(|e| e.to_string())?;
+
+    let lines = result.Lines().map_err(|e| e.to_string())?;
+    let mut extracted = Vec::new();
+    for line in lines {
+        if let Ok(text) = line.Text() {
+            extracted.push(text.to_string());
+        }
+    }
+
+    let final_text = extracted.join("\r\n");
+    if !final_text.trim().is_empty() {
+        for attempt in 0..3 {
+            if let Ok(mut cb) = arboard::Clipboard::new() {
+                if cb.set_text(&final_text).is_ok() {
+                    break;
+                }
+            }
+            if attempt < 2 {
+                std::thread::sleep(std::time::Duration::from_millis(25));
+            }
+        }
+    }
+
+    close_snipper(app);
+    Ok(final_text)
+}
+
+#[cfg(not(windows))]
+#[tauri::command]
+pub fn ocr_snip_image(_app: AppHandle, _data_url: String) -> Result<String, String> {
+    Err("OCR is only supported on Windows.".to_string())
 }

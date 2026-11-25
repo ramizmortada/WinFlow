@@ -73,7 +73,7 @@ fn load_saved_config(app: &AppHandle) -> (Vec<String>, String, String, ExplorerS
                 let snipper_sc = config
                     .snipper_shortcut
                     .filter(|s| !s.trim().is_empty())
-                    .unwrap_or_else(|| "Alt+S".to_string());
+                    .unwrap_or_else(|| "Ctrl+Shift+S".to_string());
 
                 let explorer = ExplorerSettings {
                     enabled: config.explorer_context_menu.unwrap_or(true),
@@ -87,7 +87,7 @@ fn load_saved_config(app: &AppHandle) -> (Vec<String>, String, String, ExplorerS
     (
         vec!["Alt+V".to_string()],
         "Alt+C".to_string(),
-        "Alt+S".to_string(),
+        "Ctrl+Shift+S".to_string(),
         ExplorerSettings {
             enabled: true,
             include_extensions: true,
@@ -599,7 +599,7 @@ pub fn run() {
     let manager = Arc::new(ClipboardManager::new());
     let current_shortcuts = Arc::new(Mutex::new(vec!["Alt+V".to_string()]));
     let color_picker_shortcut = Arc::new(Mutex::new("Alt+C".to_string()));
-    let snipper_shortcut = Arc::new(Mutex::new("Alt+S".to_string()));
+    let snipper_shortcut = Arc::new(Mutex::new("Ctrl+Shift+S".to_string()));
     let explorer_settings = Arc::new(Mutex::new(ExplorerSettings {
         enabled: true,
         include_extensions: true,
@@ -705,7 +705,7 @@ pub fn run() {
 
             // Create System Tray Menu
             let show_i = MenuItem::with_id(app, "show", "Open WinFlow", true, None::<&str>)?;
-            let snipper_i = MenuItem::with_id(app, "snipper", "Snipping Tool (Alt+S)", true, None::<&str>)?;
+            let snipper_i = MenuItem::with_id(app, "snipper", "Snipping Tool (Ctrl+Shift+S)", true, None::<&str>)?;
             let picker_i = MenuItem::with_id(app, "color_picker", "Color Picker (Alt+C)", true, None::<&str>)?;
             let black_screen_i = MenuItem::with_id(app, "black_screen", "Black Screen", true, None::<&str>)?;
             let shutdown_timer_i = MenuItem::with_id(app, "shutdown_timer", "Shutdown Timer...", true, None::<&str>)?;
@@ -815,7 +815,9 @@ pub fn run() {
             snipper::save_snip_image,
             snipper::pin_snip_image,
             snipper::get_pinned_snip_data,
+            snipper::minimize_pinned_snip,
             snipper::close_pinned_snip,
+            snipper::ocr_snip_image,
             color_picker::start_color_picker,
             color_picker::toggle_color_picker,
             color_picker::finish_color_picker,

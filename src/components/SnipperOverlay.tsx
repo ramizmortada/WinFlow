@@ -14,6 +14,7 @@ import {
   Pin,
   RotateCcw,
   Scan,
+  ScanText,
   Square,
   Type,
   Undo2,
@@ -351,7 +352,7 @@ export default function SnipperOverlay() {
     return { dataUrl: out.toDataURL("image/png"), width: outW, height: outH }
   }
 
-  const handleAction = async (kind: "copy" | "save" | "pin") => {
+  const handleAction = async (kind: "copy" | "save" | "pin" | "ocr") => {
     if (busy) return
     const exported = exportCroppedDataUrl()
     if (!exported) return
@@ -361,12 +362,14 @@ export default function SnipperOverlay() {
         await invoke("copy_snip_image", { dataUrl: exported.dataUrl })
       } else if (kind === "save") {
         await invoke("save_snip_image", { dataUrl: exported.dataUrl })
-      } else {
+      } else if (kind === "pin") {
         await invoke("pin_snip_image", {
           dataUrl: exported.dataUrl,
           width: exported.width,
           height: exported.height,
         })
+      } else if (kind === "ocr") {
+        await invoke<string>("ocr_snip_image", { dataUrl: exported.dataUrl })
       }
       resetOverlayState()
     } catch (err) {
@@ -505,7 +508,7 @@ export default function SnipperOverlay() {
   // Position annotation bar cleanly below (or above/inside) selection without clipping
   const toolbarPos = selection
     ? {
-        left: Math.max(12, Math.min(window.innerWidth - 520, selection.x)),
+        left: Math.max(12, Math.min(window.innerWidth - 580, selection.x)),
         top:
           selection.y + selection.h + 52 < window.innerHeight
             ? selection.y + selection.h + 8
@@ -702,6 +705,17 @@ export default function SnipperOverlay() {
           <div className="h-4 w-[1px] bg-emerald-800/70 mx-0.5" />
 
           <button
+            type="button"
+            onClick={() => handleAction("ocr")}
+            disabled={busy}
+            title="Extract & Copy Text (OCR)"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-teal-200 bg-teal-500/15 hover:bg-teal-500/25 border border-teal-500/30 transition-colors"
+          >
+            <ScanText className="h-3.5 w-3.5 text-teal-300" />
+            <span>Copy Text</span>
+          </button>
+          <button
+            type="button"
             onClick={() => handleAction("pin")}
             disabled={busy}
             title="Pin to Screen"
@@ -710,6 +724,7 @@ export default function SnipperOverlay() {
             <Pin className="h-3.5 w-3.5" />
           </button>
           <button
+            type="button"
             onClick={() => handleAction("save")}
             disabled={busy}
             title="Save PNG"
@@ -721,11 +736,11 @@ export default function SnipperOverlay() {
             type="button"
             onClick={() => handleAction("copy")}
             disabled={busy}
-            title="Copy to Clipboard (Enter)"
+            title="Copy Image to Clipboard (Enter)"
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#14ad72] hover:bg-emerald-400 text-slate-950 transition-colors"
           >
             <Copy className="h-3.5 w-3.5" />
-            <span>Copy</span>
+            <span>Copy Image</span>
           </button>
         </div>
       )}
